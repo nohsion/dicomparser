@@ -78,6 +78,7 @@
         // be named 'x0008103e'.  Here we iterate over each property (element) so we can build a string describing its
         // contents to add to the output array
         try {
+            let iii = 0
             for (var propertyName in dataSet.elements) {
                 var element = dataSet.elements[propertyName];
 
@@ -106,13 +107,17 @@
 
                     // each item contains its own data set so we iterate over the items
                     // and recursively call this function
+                    
                     var itemNumber = 0;
-                    element.items.forEach(function (item) {
-                        console.log(itemNumber)
-
-                        output.push('<li>Item #' + itemNumber++ + ' ' + item.tag + '</li>')
+                    element.items.forEach(function (item, index) {
+                        // console.log('item #', itemNumber, item.tag)
+                        iii = index
+                        output.push('<li>Item #' + itemNumber + ' ' + item.tag + '</li>')
+                        
                         output.push('<ul>');
                         dumpDataSet(item.dataSet, output);
+                        itemNumber++
+                        console.log('item #', iii, item.tag)
                         output.push('</ul>');
                     });
                     output.push('</ul>');
@@ -152,6 +157,8 @@
                             if (str !== undefined) {
                                 text += '"' + str + '"';
                             }
+                            
+                            // console.log('item #', itemNumber, propertyName)
                         }
                         else {
                             if (element.length !== 2 && element.length !== 4) {
@@ -164,7 +171,6 @@
                         if (element.length === 0) {
                             color = '#C8C8C8';
                         }
-
                     }
                     else {
                         color = '#C8C8C8';

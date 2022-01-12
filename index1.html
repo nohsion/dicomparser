@@ -96,9 +96,11 @@
     // This function iterates through dataSet recursively and adds new HTML strings
     // to the output array passed into it
     const lists = new DefaultDict(Array)
+    let jsonData = {}
+    let itemNumber = -100
+    let depth = 0
 
     function dumpDataSet(dataSet, output, itemLen) {
-
         let usingTags = {
             'x300a00b0': 'Beam SQ',
             'x300a00c0': 'Beam Number',
@@ -141,29 +143,19 @@
                 var element = dataSet.elements[propertyName];
                 let text = ''
 
-                // Beam Dose가 있는지 확인
-                // if (element.tag === 'x300c0004') {
-                //     element.items.forEach(function (item) {
-                //         console.log(item.dataSet.elements)
-                //         for (let tag in item.dataSet.elements) {
-                //             if (tag === 'x300a0084') {
-                                
-                //             }
-                //         }
-                //     })
-                // }
-
                 if (element.items) {
-                    
-                    itemNumber = 0;
-                    element.items.forEach(function (item) {
-                        // console.log(itemNumber)
-                        itemNumber++
+                    depth++
+                    element.items.forEach(function (item, index) {
+                        itemNumber = index
+                        console.log('item #', itemNumber, item.tag)
+
                         dumpDataSet(item.dataSet, output, itemLen);
+                        itemNumber = index
+                        // console.log('item #', itemNumber, index, item.tag)
                     });
+                    depth--
                 }
                 else {
-
                     if (element.length < 128 && Object.keys(usingTags).includes(element.tag)) {
 
                         let str = dataSet.string(propertyName);
@@ -186,12 +178,12 @@
 
                     }
                     if (text) {
-                        // let tmp = []
-                        // tmp.push(itemNumber)
-                        // tmp.push(text)
-                        // lists[usingTags[element.tag]].push(tmp)
-
-                        lists[usingTags[element.tag]].push(text)
+                        let tmp = []
+                        tmp.push(itemNumber)
+                        tmp.push(text)
+                        lists[usingTags[element.tag]].push(tmp)
+                        console.log('depth:', depth, 'item #', itemNumber, element.tag, usingTags[element.tag], text)
+                        // lists[usingTags[element.tag]].push(text)
 
                         // console.log('#', itemNumber, text)
                     }
@@ -245,59 +237,22 @@
                     // Here we call dumpDataSet to recursively iterate through the DataSet and create an array
                     // of strings of the contents.
 
+                    console.log(dataSet)
                     const itemLen = itemLength(dataSet)
                     var output = new DefaultDict(Array)
                     dumpDataSet(dataSet, output, itemLen);
 
                     console.log(lists)
-                    const json = JSON.stringify(lists);
-                    // console.log(json);
-                    // download(json, 'parsed_json.txt', 'text/plain');
 
-                    // Combine the array of strings into one string and add it to the DOM
-                    // document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
+                    jsonData = JSON.stringify(lists, null, 2);
 
-                    // var end = new Date().getTime();
-                    // var time = end - start;
-                    // if (dataSet.warnings.length > 0) {
-                    //     $('#status').removeClass('alert-success alert-info alert-danger').addClass('alert-warning');
-                    //     $('#statusText').html('Status: Warnings encountered while parsing file (file of size ' + byteStr + ' parsed in ' + time + 'ms)');
-
-                    //     dataSet.warnings.forEach(function (warning) {
-                    //         $("#warnings").append('<li>' + warning + '</li>');
-                    //     });
-                    // }
-                    // else {
-                    //     var pixelData = dataSet.elements.x7fe00010;
-                    //     if (pixelData) {
-                    //         $('#status').removeClass('alert-warning alert-info alert-danger').addClass('alert-success');
-                    //         $('#statusText').html('Status: Ready (file of size ' + byteStr + ' parsed in ' + time + 'ms)');
-                    //     }
-                    //     else {
-                    //         $('#status').removeClass('alert-warning alert-info alert-danger').addClass('alert-success');
-                    //         $('#statusText').html('Status: Ready - no pixel data found (file of size ' + byteStr + ' parsed in ' + time + 'ms)');
-                    //     }
-                    // }
+                    // console.log(jsonData);
+                    // download(jsonData, 'parse.json', 'text/plain');
 
 
                 }
                 catch (err) {
                     console.log(err)
-                    // var message = err;
-                    // if (err.exception) {
-                    //     message = err.exception;
-                    // }
-
-                    // $('#status').removeClass('alert-success alert-info alert-warning').addClass('alert-danger');
-                    // document.getElementById('statusText').innerHTML = 'Status: Error - ' + message + ' (file of size ' + byteStr + ' )';
-                    // if (err.output) {
-                    //     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
-                    // }
-                    // else if (err.dataSet) {
-                    //     var output = [];
-                    //     dumpDataSet(err.dataSet, output);
-                    //     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
-                    // }
                 }
             }, 10);
         };
