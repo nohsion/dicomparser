@@ -298,9 +298,7 @@
                     // each item contains its own data set so we iterate over the items
                     // and recursively call this function
                     var itemNumber = 0;
-
-                    // for (let item of element.items)
-                    element.items.forEach(function (item, index) {
+                    for (let item of element.items) {
                         count++
                         if (count === 1) {
                             if (!nrItems && itemNumber == 0)
@@ -325,7 +323,7 @@
                         dumpDataSet(item.dataSet, output);
                         count--
                         output.push('</ul>');
-                    });
+                    };
 
                     output.push('</ul>');
                 }
@@ -508,7 +506,7 @@
                         let itemIndex = nrItems[nrItems.length - 1]
                         let attrName = getTag(element.tag).name
                         console.log(count, itemIndex, attrName, str)
-                        // colItems[itemIndex][attrName].push(str)
+                        colItems[itemIndex][attrName].push(str)
                         // if (aaaa === 1) {
                         //     return
                         // }
