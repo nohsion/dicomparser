@@ -148,7 +148,22 @@
         return linkText;
     }
 
+    function itemLength(dataSet) {
+        let itemLength;
+        for (let propertyName in dataSet.elements) {
+
+            let element = dataSet.elements[propertyName];
+
+            if (element.tag === 'x300a00b0') {
+                itemLength = element.items.length
+            }
+        }
+        return itemLength
+    }
+
+    let itemLen = -1
     let count = 0
+    let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
     // This function iterates through dataSet recursively and adds new HTML strings
     // to the output array passed into it
     function dumpDataSet(dataSet, output) {
@@ -161,10 +176,10 @@
         }
 
         try {
-            
+
             var keys = [];
             for (var propertyName in dataSet.elements) {
-                // items가 존재하는 Sequence만 keys에 추가.
+                // depth=0일 때는, items가 존재하는 Sequence만 keys에 추가.
                 if (count === 0) {
                     if (getTag(propertyName) && getTag(propertyName)['vr'] === 'SQ') {
                         keys.push(propertyName);
@@ -190,7 +205,7 @@
             for (var k = 0; k < keys.length; k++) {
                 var propertyName = keys[k];
                 var element = dataSet.elements[propertyName];
-                
+
                 if (showP10Header === false && element.tag <= "x0002ffff") {
                     continue;
                 }
@@ -281,8 +296,17 @@
                     // each item contains its own data set so we iterate over the items
                     // and recursively call this function
                     var itemNumber = 0;
-                    element.items.forEach(function (item) {
-                        output.push('<li>Item #' + itemNumber++ + ' ' + item.tag);
+                    element.items.forEach(function (item, index) {
+                        count++
+                        if (count === 1) {
+                            if (!nrItems && itemNumber == 0)
+                                nrItems = []
+                            else
+                                nrItems.push(itemNumber)
+
+                        }
+
+                        output.push('<li>Item #' + itemNumber++ + ' ', nrItems[nrItems.length - 1] + ' ' + item.tag);
                         var lengthText = " length=" + item.length;
                         if (item.hadUndefinedLength) {
                             lengthText += " (-1)";
@@ -294,11 +318,11 @@
                         }
                         output.push('</li>');
                         output.push('<ul>');
-                        count++
                         dumpDataSet(item.dataSet, output);
                         count--
                         output.push('</ul>');
                     });
+
                     output.push('</ul>');
                 }
                 else {
@@ -474,6 +498,13 @@
                     }
                     // finally we add the string to our output array surrounded by li elements so it shows up in the
                     // DOM as a list
+                    console.log(count, nrItems[nrItems.length - 1], title, text)
+
+                    // for (let i = 0; i < itemLen; i++) {
+
+                    // }
+
+
                     output.push('<li style="color:' + color + ';" title="' + title + '">' + text + '</li>');
 
                 }
@@ -556,6 +587,7 @@
                     // Here we call dumpDataSet to recursively iterate through the DataSet and create an array
                     // of strings of the contents.
                     var output = [];
+                    itemLen = itemLength(dataSet)
                     dumpDataSet(dataSet, output);
                     // Combine the array of strings into one string and add it to the DOM
                     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
