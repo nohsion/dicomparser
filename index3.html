@@ -80,7 +80,7 @@
 <script src="./modules/dataDictionary.js"></script>
 
 <!-- include the BeamTable dictionary -->
-<!-- <script src="./modules/beamTableDictionary.js"></script> -->
+<script src="./modules/beamTableDictionary.js"></script>
 
 <!-- include the uids -->
 <script src="./modules/uids.js"></script>
@@ -162,18 +162,20 @@
     }
 
     let itemLen = -1
+    let colItems = []
     let count = 0
     let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
     // This function iterates through dataSet recursively and adds new HTML strings
     // to the output array passed into it
+    function getTag(tag) {
+        var group = tag.substring(1, 5);
+        var element = tag.substring(5, 9);
+        var tagIndex = ("(" + group + "," + element + ")").toUpperCase();
+        var attr = TAG_DICT[tagIndex];
+        return attr;
+    }
+
     function dumpDataSet(dataSet, output) {
-        function getTag(tag) {
-            var group = tag.substring(1, 5);
-            var element = tag.substring(5, 9);
-            var tagIndex = ("(" + group + "," + element + ")").toUpperCase();
-            var attr = TAG_DICT[tagIndex];
-            return attr;
-        }
 
         try {
 
@@ -296,6 +298,8 @@
                     // each item contains its own data set so we iterate over the items
                     // and recursively call this function
                     var itemNumber = 0;
+
+                    // for (let item of element.items)
                     element.items.forEach(function (item, index) {
                         count++
                         if (count === 1) {
@@ -498,12 +502,18 @@
                     }
                     // finally we add the string to our output array surrounded by li elements so it shows up in the
                     // DOM as a list
-                    console.log(count, nrItems[nrItems.length - 1], title, text)
-
-                    // for (let i = 0; i < itemLen; i++) {
-
-                    // }
-
+                    let aaaa = 0
+                    if (getTag(element.tag) !== undefined) {
+                        aaaa++
+                        let itemIndex = nrItems[nrItems.length - 1]
+                        let attrName = getTag(element.tag).name
+                        console.log(count, itemIndex, attrName, str)
+                        // colItems[itemIndex][attrName].push(str)
+                        // if (aaaa === 1) {
+                        //     return
+                        // }
+                        // console.log(itemIndex, colItems)
+                    }
 
                     output.push('<li style="color:' + color + ';" title="' + title + '">' + text + '</li>');
 
@@ -588,7 +598,21 @@
                     // of strings of the contents.
                     var output = [];
                     itemLen = itemLength(dataSet)
+                    if (itemLen !== -1) {
+
+                        let obj = {}
+                        for (let key in TAG_DICT) {
+                            obj[TAG_DICT[key].name] = []
+                        }
+                        for (let i = 0; i < itemLen; i++) {
+                            colItems.push(obj)
+                        }
+                    }
+                    console.log(colItems)
+
                     dumpDataSet(dataSet, output);
+
+                    console.log(colItems)
                     // Combine the array of strings into one string and add it to the DOM
                     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
 
