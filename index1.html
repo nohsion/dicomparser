@@ -110,6 +110,7 @@
     let beamItems = []
     let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
     let depth = 0
+    let newBeams = new Array()
 
     function dumpDataSet(dataSet) {
 
@@ -121,6 +122,8 @@
                 let text = ''
 
                 if (element.items) {
+                    // Tolerance Table Sequence는 필요 없어서 제외
+                    if (element.tag === 'x300a0040') continue
 
                     let itemNumber = 0;
                     element.items.forEach(function (item) {
@@ -152,9 +155,11 @@
                         /*
                             Additional Parsing processing
                         */
-                        // SSD, MU 단위 변환
-                        if (element.tag === 'x300a0130' || element.tag === 'x300a0086') {
-                            str = Math.round(Number(str) * 10) / 10
+                        // SSD, MU, BeamDose 단위 변환
+                        if (element.tag === 'x300a0130' || element.tag === 'x300a0086' ||
+                            element.tag === 'x300a0084' || element.tag === 'x300a011e' ||
+                            element.tag === 'x300a0120') {
+                            str = (Number(str).toFixed(1)).toString()
                         }
 
                         let stringIsAscii = isASCII(str);
@@ -228,6 +233,8 @@
 
                         let obj = {}
                         for (let key in TAG_DICT) {
+                            if (TAG_DICT[key].vr === 'SQ')
+                                continue
                             obj[TAG_DICT[key].name] = []
                         }
                         for (let i = 0; i < itemLen; i++) {
@@ -237,6 +244,9 @@
                     // console.log(beamItems)
                     dumpDataSet(dataSet);
                     console.log(beamItems)
+
+                    newBeams = createRTPACS(beamItems, itemLen)
+                    console.log(newBeams)
 
                 }
                 catch (err) {
@@ -248,6 +258,220 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // RTPACS의 BeamTable에 맞게 작업하는 함수
+    function createRTPACS(beamItems, itemLen) {
+
+        let newBeamItems = []
+        for (let i = 0; i < itemLen; i++) {
+            let obj = {}
+            newBeamItems.push(obj)
+        }
+
+        let gantryRtn = ''
+        let fieldX = ''
+        let fieldY = ''
+        let x1 = ''
+        let x2 = ''
+        let y1 = ''
+        let y2 = ''
+        let beamItemName = ''
+
+        for (let i = 0; i < beamItems.length; i++) {
+            for (let item in beamItems[i]) {
+
+                try {
+                    let attrName = item
+
+                    // # Beam Item Name 정하기
+                    if (beamItems[i].BeamDose) {
+                        beamItemName = beamItems[i].BeamNumber + '. ' + beamItems[i].RadiationType
+                    } else {
+                        beamItemName = beamItems[i].TreatmentDeliveryType
+                    }
+                    newBeamItems[i]['BeamItemName'] = beamItemName
+
+                    // # Name 처리
+                    if (attrName === 'BeamName') {
+                        newBeamItems[i]['Name'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Machine Name 처리
+                    if (attrName === 'TreatmentMachineName') {
+                        newBeamItems[i]['Machine NAme'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Technique 처리
+                    if (attrName === 'BeamType') {
+                        newBeamItems[i]['Technique'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Position 처리
+                    if (attrName === 'PatientPosition') {
+                        newBeamItems[i]['Position'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Dose Rate (MU/min) 처리
+                    if (attrName === 'DoseRateSet') {
+                        newBeamItems[i]['Dose Rate (MU/min)'] = beamItems[i][attrName][0]
+                    }
+
+                    // # M/U 처리
+                    if (attrName === 'BeamMeterset') {
+                        newBeamItems[i]['M/U'] = beamItems[i][attrName][0]
+                    }
+
+                    // # SSD 처리
+                    if (attrName === 'SourceToSurfaceDistance') {
+                        newBeamItems[i]['SSD'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Gantry Rtn. (degree) 계산
+                    if (attrName === 'GantryAngle' && beamItems[i].GantryAngle.length >= 2) {
+                        gantryRtn = beamItems[i].GantryAngle[0] + '/' + beamItems[i].GantryAngle[beamItems[i].GantryAngle.length - 1]
+                        gantryRtn += ' (' + beamItems[i].GantryRotationDirection[0] + ')'
+                        newBeamItems[i]['Gantry Rtn. (degree)'] = gantryRtn
+                    }
+
+                    // # Colli Rtn. (degree) 처리
+                    if (attrName === 'BeamLimitingDeviceAngle') {
+                        newBeamItems[i]['Colli Rtn. (degree)'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Field X, Field Y 계산
+                    if (attrName === 'LeafJawPositions') {
+                        beamItems[i].RTBeamLimitingDeviceType.forEach((type, index) => {
+                            if (type === 'MLCX' || type === 'MLCY')
+                                return false
+
+                            if (type === 'X' && !fieldX) {
+                                fieldX = beamItems[i].LeafJawPositions[index]
+                            } else if (type === 'ASYMX' && !fieldX) {
+                                fieldX = beamItems[i].LeafJawPositions[index]
+                            }
+
+                            if (type === 'Y' && !fieldY) {
+                                fieldY = beamItems[i].LeafJawPositions[index]
+
+                            } else if (type === 'ASYMY' && !fieldY) {
+                                fieldY = beamItems[i].LeafJawPositions[index]
+                            }
+
+                        })
+                        tmpX1 = (-Number(fieldX.split('\\')[0])) / 10
+                        tmpX2 = Number(fieldX.split('\\')[1]) / 10
+                        tmpY1 = (-Number(fieldY.split('\\')[0])) / 10
+                        tmpY2 = Number(fieldY.split('\\')[1]) / 10
+
+                        fieldX = tmpX1 + tmpX2
+                        fieldY = tmpY1 + tmpY2
+
+                        x1 = tmpX1.toFixed(1)
+                        x2 = tmpX2.toFixed(1)
+                        y1 = tmpY1.toFixed(1)
+                        y2 = tmpY2.toFixed(1)
+
+                        fieldX = fieldX.toFixed(1)
+                        fieldY = fieldY.toFixed(1)
+                        if (x1 !== x2) {
+                            fieldX += ' *'
+                        }
+                        if (y1 !== y2) {
+                            fieldY += ' *'
+                        }
+
+                        newBeamItems[i]['Field X (cm)'] = fieldX
+                        newBeamItems[i]['Field Y (cm)'] = fieldY
+                        newBeamItems[i]['X1 (cm)'] = x1
+                        newBeamItems[i]['X2 (cm)'] = x2
+                        newBeamItems[i]['Y1 (cm)'] = y1
+                        newBeamItems[i]['Y2 (cm)'] = y2
+
+                        // fieldX, fieldY 초기화
+                        fieldX = ''
+                        fieldY = ''
+
+                    }
+
+                    // # Nominal Beam Energy 단위 표시
+                    if (attrName === 'NominalBeamEnergy') {
+                        if (beamItems[i].RadiationType[0] === 'PHOTON') {
+                            newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MV'
+                        }
+                        else if (beamItems[i].RadiationType[0] === 'NEUTRON' || beamItems[i].RadiationType[0] === 'ELECTRON'
+                            || beamItems[i].RadiationType[0] === 'PROTON') {
+                                newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MeV'
+                        }
+                    }
+
+                    // # Number of Boli, Compensators, Accessories,
+                    if (attrName === 'NumberOfBoli') {
+                        if (Number(beamItems[i][attrName]) === 0) {
+                            newBeamItems[i]['Bolus'] = 'N'
+                        } else if (Number(beamItems[i][attrName]) >= 1) {
+                            newBeamItems[i]['Bolus'] = 'Y'
+                        }
+                    }
+                    if (attrName === 'NumberOfCompensators') {
+                        if (Number(beamItems[i][attrName]) === 0) {
+                            newBeamItems[i]['Compensator (Y/N)'] = 'N'
+                        } else if (Number(beamItems[i][attrName]) >= 1) {
+                            newBeamItems[i]['Compensator (Y/N)'] = 'Y'
+                        }
+                    }
+                    // TODO: Accessories 작업
+
+
+                    // # MLC / Block 처리
+                    // Block인 경우
+                    if (beamItems[i].NumberOfBlocks[0] !== '0') {
+                        newBeamItems[i]['MLC / Block'] = 'Block'
+                    }
+                    // MLC인 경우
+                    else {
+                        if (beamItems[i].BeamType[0] === 'STATIC') {
+                            newBeamItems[i]['MLC / Block'] = 'MLC'
+                        }
+                        else if (beamItems[i].BeamType[0] === 'DYNAMIC') {
+                            newBeamItems[i]['MLC / Block'] = 'DMLC'
+                        }
+                    }
+
+                    // # Wedge Code 처리
+                    if (!beamItems[i].WedgeID[0]) {
+                        newBeamItems[i]['Wedge Angle'] = ''
+                        newBeamItems[i]['Wedge Code'] = 'NONE'
+                    } else {
+                        newBeamItems[i]['Wedge Code'] = beamItems[i].WedgeID[0] // 수정 필요
+                    }
+
+                    // # Electron Applicator 처리
+                    if (!beamItems[i].ApplicatorID[0]) {
+                        newBeamItems[i]['Electron Applicator (cm)'] = ''
+                    } else {
+                        newBeamItems[i]['Electron Applicator (cm)'] = beamItems[i].ApplicatorID[0]
+                    }
+
+                    // # Compensator Thickness 처리
+                    if (!beamItems[i].CompensatorThicknessData[0]) {
+                        newBeamItems[i]['Thickness (cm)'] = ''
+                    } else {
+                        newBeamItems[i]['Thickness (cm)'] = beamItems[i].ApplicatorID[0]
+                    }
+
+                    // # Couch Rtn 처리
+
+
+
+
+                } catch (err) {
+                    console.log(err)
+                }
+            }
+
+        }
+
+        return newBeamItems
+    }
 
     // this function gets called once the user drops the file onto the div
     function handleFileSelect(evt) {

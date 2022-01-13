@@ -36,6 +36,9 @@ var TAG_DICT = {
     '(300A,00EC)': {'tag': '(300A,00EC)', 'vr': 'DS', 'vm': '1-n', 'name': 'CompensatorThicknessData'},
     '(300A,00E3)': {'tag': '(300A,00E3)', 'vr': 'SQ', 'vm': '1', 'name': 'CompensatorSequence'},
     '(300C,0004)': {'tag': '(300C,0004)', 'vr': 'SQ', 'vm': '1', 'name': 'ReferencedBeamSequence'},
+    '(300A,00F0)': {'tag': '(300A,00F0)', 'vr': 'IS', 'vm': '1', 'name': 'NumberOfBlocks'},
+    '(300A,00D1)': {'tag': '(300A,00D1)', 'vr': 'SQ', 'vm': '1', 'name': 'WedgeSequence'},
+
 }
 
 // module.exports = { TAG_DICT };
