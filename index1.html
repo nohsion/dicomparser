@@ -212,22 +212,25 @@
 
         document.getElementById('dropZone').appendChild(table)
 
-        // for (let table in newBeamTable) {
-        //     let beamTag = document.createElement('th')
-        //     beamTag.setAttribute('title', newBeamTable[table].BeamItemName)
-        //     beamTag.innerHTML = newBeamTable[table].BeamItemName
-        //     dropzone.appendChild(beamTag)
+        let rowTag = document.createElement('tr')
 
-        //     // let attrTag = 
-        //     for (let element in newBeamTable[table]) {
-        //         console.log(element, newBeamTable[table][element])
-        //         // let itemTag = document.createElement('tr')
-        //         // itemTag.setAttribute('title', newBeamTable[t].BeamItemName)
-        //         // itemTag.innerHTML = newBeamTable[t].BeamItemName
-        //         // dropzone.appendChild(itemTag)
-        //     }
+        // Create Table Head
+        for (let i = -1; i < newBeamTable.length; i++) {
+            let headTag = document.createElement('th')
+            if (i === -1) {
+                headTag.innerHTML = 'Attr Name.'
+                rowTag.appendChild(headTag)
+                continue
+            }
+            
+            headTag.innerHTML = newBeamTable[i].BeamItemName
+            rowTag.appendChild(headTag)
+            // console.log(newBeamTable[i].BeamItemName)
+        }
+        thead.appendChild(rowTag)
 
-        // }
+        // Create Table Body
+    
     }
 
     function download(content, fileName, contentType) {
