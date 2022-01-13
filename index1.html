@@ -11,6 +11,17 @@
             background-color: #F0F0F0;
             overflow: auto;
         }
+
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+
+        th,
+        td {
+            padding: 10px 20px;
+            border: 1px solid #000;
+        }
     </style>
 
 </head>
@@ -130,7 +141,7 @@
                         depth++
                         // Beam Dose SQ는 depth가 달라서 예외 처리
                         if (element.tag === 'x300c0004') {
-                            console.log('this is referenced beam SQ', itemNumber)
+                            // console.log('this is referenced beam SQ', itemNumber)
                             nrItems.push(itemNumber)
                         }
                         if (depth === 1) {
@@ -171,10 +182,11 @@
                         }
 
                     }
+                    // 실제 beamItems에 추가하는 부분
                     if (getTag(element.tag) !== undefined) {
                         let itemIndex = nrItems[nrItems.length - 1]
                         let attrName = getTag(element.tag).name
-                        console.log(depth, itemIndex, attrName, text)
+                        // console.log(depth, itemIndex, attrName, text)
                         beamItems[itemIndex][attrName].push(text)
                     }
                 }
@@ -188,6 +200,34 @@
             console.log(err)
             throw ex;
         }
+    }
+
+    function showTable(newBeamTable) {
+        let table = document.createElement('table');
+        let thead = document.createElement('thead');
+        let tbody = document.createElement('tbody');
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+
+        document.getElementById('dropZone').appendChild(table)
+
+        // for (let table in newBeamTable) {
+        //     let beamTag = document.createElement('th')
+        //     beamTag.setAttribute('title', newBeamTable[table].BeamItemName)
+        //     beamTag.innerHTML = newBeamTable[table].BeamItemName
+        //     dropzone.appendChild(beamTag)
+
+        //     // let attrTag = 
+        //     for (let element in newBeamTable[table]) {
+        //         console.log(element, newBeamTable[table][element])
+        //         // let itemTag = document.createElement('tr')
+        //         // itemTag.setAttribute('title', newBeamTable[t].BeamItemName)
+        //         // itemTag.innerHTML = newBeamTable[t].BeamItemName
+        //         // dropzone.appendChild(itemTag)
+        //     }
+
+        // }
     }
 
     function download(content, fileName, contentType) {
@@ -247,6 +287,8 @@
 
                     newBeams = createRTPACS(beamItems, itemLen)
                     console.log(newBeams)
+
+                    showTable(newBeams)
 
                 }
                 catch (err) {
@@ -399,7 +441,7 @@
                         }
                         else if (beamItems[i].RadiationType[0] === 'NEUTRON' || beamItems[i].RadiationType[0] === 'ELECTRON'
                             || beamItems[i].RadiationType[0] === 'PROTON') {
-                                newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MeV'
+                            newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MeV'
                         }
                     }
 
