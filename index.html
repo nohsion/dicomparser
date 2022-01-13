@@ -6,7 +6,7 @@
 
     <style>
         #dropZone {
-            height: 500px;
+            height: calc(100% - 250px);
             width: 100%;
             background-color: #F0F0F0;
             overflow: auto;
@@ -18,27 +18,32 @@
 <body>
     <div class="container">
 
-        <div class="page-header">
-            <h1>DICOM Beam Table</h1>
+        <div>
+            <h1>DICOM Dump with Data Dictionary v<span id="version"></span></h1>
             <p class="lead">
-                Drag and drop a DICOM Part 10 file into the light gray region below for a dump of its elements.
-            </p>
-            <p>
-                This example illustrates how to recursively iterate over a parsed data set to dump all data elements
-                into a tree like structure. Note that DICOM files dropped here are not uploaded anywhere, all processing
+                DICOM files dropped here are not uploaded anywhere, all processing
                 is done inside your web browser in Javascript.
             </p>
-            <strong>Use of this example require IE10+ or any other modern browser.</strong>
-        </div>
+            <form class="form-inline">
+                <div class="form-group">
+                    <label for="maxLength">Max Length</label>
+                    <input type="text" class="form-control" id="maxLength" placeholder="(e.g. 128)" value="128">
+                </div>
+                <div class="form-group">
+                    <label for="untilTag">Until Tag</label>
+                    <input type="text" class="form-control" id="untilTag" placeholder="(e.g. x7fe00010)">
+                </div>
+                <br>
 
+            </form>
+            <div id="status" class="alert alert-success">
+                <div id="statusText">
+                    Status: Ready (no file loaded)
+                </div>
+                <ul id="warnings">
 
-        <div id="status" class="alert alert-success">
-            <div id="statusText">
-                Status: Ready (no file loaded)
+                </ul>
             </div>
-            <ul id="warnings">
-
-            </ul>
         </div>
 
         <div class="row">
@@ -46,10 +51,11 @@
                 <div id="dropZone">
 
                     <div class="text-center" style="margin-top:225px;">
-                        <h3>Drag DICOM P10 file here to dump its elements</h3>
+                        <h3>Drag and drop a DICOM P10 file here to dump its elements</h3>
                     </div>
 
                 </div>
+
             </div>
         </div>
 
@@ -57,116 +63,190 @@
 </body>
 
 <!-- include the dicomParser library -->
-<script src="../node_modules/dicom-parser/dist/dicomParser.js"></script>
+<script src="./node_modules/dicom-parser/dist/dicomParser.js"></script>
 <script>window.dicomParser || document.write('<script src="https://unpkg.com/dicom-parser">\x3C/script>')</script>
 
 <!-- jquery - included to make things easier to demo, not needed by dicomParser -->
 <script src="https://code.jquery.com/jquery-3.4.1.js"></script>
 
+<!-- pako - needed to support deflated transfer syntax -->
+<script src="./node_modules/pako/dist/pako.min.js"></script>
+
+<!-- include the data dictionary -->
+<script src="./modules/dataDictionary.js"></script>
+
+<!-- include the BeamTable dictionary -->
+<script src="./modules/beamTableDictionary.js"></script>
+
+<!-- include the uids -->
+<script src="./modules/uids.js"></script>
+
+<!-- include Rusha for SHA1 hashing -->
+<script src="./node_modules/rusha/dist/rusha.min.js"></script>
+
+
 <script>
+
+    var dataSet; // the parsed dataSet as global so we can interact with it from console
+
+    var maxLength = 128;
+    var untilTag = "";
 
     // helper function to see if a string only has ascii characters in it
     function isASCII(str) {
         return /^[\x00-\x7F]*$/.test(str);
     }
 
+    function escapeSpecialCharacters(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function dataDownloadLink(element, text) {
+        var linkText = "<a class='dataDownload' href='#' data-tag='" + element.tag + "'";
+        linkText += " data-dataOffset='" + element.dataOffset + "'";
+        linkText += " data-length='" + element.length + "'";
+        linkText += ">" + text + "</a>";
+        return linkText;
+    }
+
+    function itemLength(dataSet) {
+        let itemLength;
+        for (let propertyName in dataSet.elements) {
+
+            let element = dataSet.elements[propertyName];
+
+            if (element.tag === 'x300a00b0') {
+                itemLength = element.items.length
+            }
+        }
+        return itemLength
+    }
+
+    let itemLen = -1
+    let colItems = []
+    let count = 0
+    let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
     // This function iterates through dataSet recursively and adds new HTML strings
     // to the output array passed into it
-    function dumpDataSet(dataSet, output) {
-        let usingTags = {
-            'x300a00c0': 'Beam Number',
-            'x300a00c6': 'Radiation Type', // PHOTON, NEUTRON, ELECTRON, PROTON
-            'x300a00ce': 'Treatment Delivery Type',
-            'x300a0084': 'Beam Dose',
-            'x300a00c2': 'Beam Name',
-            'x300a00b2': 'Machine Name',
-            'x300a00c4': 'Beam Type', // DYNAMIC, STATIC
-            'x00185100': 'Position',
-            'x300a0114': 'Energy',
-            'x300a0115': 'Dose Rate (MU/min)',
-            'x300a0086': 'M/U',
-            'x300a0130': 'SSD (cm)',
-            'x300a011e': 'Gantry Angle', // first + last item
-            'x300a011f': 'Gantry Rotation Direction', // CW, CC, NONE
-            'x300a0120': 'Colli Angle', // first item
-            'x300a011c': 'Leaf/Jaw Positions',
-            'x300a00b8': 'Collimator Type', // X,Y,ASYMX,ASYMY,MLCX,MLCY
-            'x300a00d5': 'Wedge Angle',
-            'x300a00d5': 'Wedge ID',
-            'x300a0118': 'Wedge Position', 
-            'x300a0108': 'Electron Applicator ID',
-            'x300a0112': 'Couch Rtn (degree)',
-            'x300a00c6': 'Radiation Type'
-        }
+    function getTag(tag) {
+        var group = tag.substring(1, 5);
+        var element = tag.substring(5, 9);
+        var tagIndex = ("(" + group + "," + element + ")").toUpperCase();
+        var attr = TAG_DICT[tagIndex];
+        return attr;
+    }
+
+    function dumpDataSet(dataSet) {
 
         try {
 
+            var keys = [];
             for (var propertyName in dataSet.elements) {
-
-                var element = dataSet.elements[propertyName];
-                let text = ''
-
-                let energyUnit = ''
-
-                if (element.items) {
-                    // console.log(element)
-                    // output.push('<li>' + text + '</li>');
-                    output.push('<ul>');
-
-                    let itemNumber = 0;
-                    element.items.forEach(function (item) {
-                        // output.push('<li>Item #' + itemNumber++ + ' ' + '</li>')
-                        dumpDataSet(item.dataSet, output);
-                    });
-                    output.push('</ul>');
+                // depth=0일 때는, items가 존재하는 Sequence만 keys에 추가.
+                if (count === 0) {
+                    if (getTag(propertyName) && getTag(propertyName)['vr'] === 'SQ') {
+                        keys.push(propertyName);
+                        continue
+                    }
                 }
                 else {
-
-                    if (element.length < 128 && Object.keys(usingTags).includes(element.tag)) {
-
-
-                        text += (usingTags[element.tag] + ' -')
-                        var str = dataSet.string(propertyName);
-
-                        /*
-                            Additional Parsing processing
-                        */
-                        // SSD 단위 변환
-                        if (element.tag === 'x300a0130') {
-                            str = Math.round(Number(str) * 10) / 10
-                        }
-                        // MU 단위 변환
-                        if (element.tag === 'x300a0086') {
-                            str = Math.round(Number(str) * 10) / 10
-                        }
-
-
-                        var stringIsAscii = isASCII(str);
-
-                        if (stringIsAscii) {
-                            if (str !== undefined) {
-                                text += ' "' + str + '" ';
-                            }
-                        }
-
-                    }
-                    if (text) {
-                        output.push('<li>' + text + '</li>')
-                    }
+                    keys.push(propertyName)
                 }
 
+            }
+            keys.sort();
+            if (keys && keys.length) {
+                console.log(keys)
+            }
+
+
+            // the dataSet.elements object contains properties for each element parsed.  The name of the property
+            // is based on the elements tag and looks like 'xGGGGEEEE' where GGGG is the group number and EEEE is the
+            // element number both with lowercase hexadecimal letters.  For example, the Series Description DICOM element 0008,103E would
+            // be named 'x0008103e'.  Here we iterate over each property (element) so we can build a string describing its
+            // contents to add to the output array
+            for (var k = 0; k < keys.length; k++) {
+                var propertyName = keys[k];
+                var element = dataSet.elements[propertyName];
+
+                var text = "";
+                var title = "";
+
+                var tag = getTag(element.tag);
+
+                // Here we check for Sequence items and iterate over them if present.  items will not be set in the
+                // element object for elements that don't have SQ VR type.  Note that implicit little endian
+                // sequences will are currently not parsed.
+                if (element.items) {
+                    // output.push('<li>' + text + '</li>');
+                    // output.push('<ul>');
+
+                    // each item contains its own data set so we iterate over the items
+                    // and recursively call this function
+                    var itemNumber = 0;
+                    for (let item of element.items) {
+                        count++
+                        if (count === 1) {
+                            if (!nrItems && itemNumber == 0)
+                                nrItems = []
+                            else
+                                nrItems.push(itemNumber)
+                        }
+
+                        // output.push('<li>Item #' + itemNumber++ + ' ', nrItems[nrItems.length - 1] + ' ' + item.tag);
+                        var lengthText = " length=" + item.length;
+
+                        // output.push('</li>');
+                        // output.push('<ul>');
+                        dumpDataSet(item.dataSet);
+                        count--
+                        // output.push('</ul>');
+                    };
+
+                    // output.push('</ul>');
+                }
+                else {
+                    // if the length of the element is less than 128 we try to show it.  We put this check in
+                    // to avoid displaying large strings which makes it harder to use.
+
+                    // finally we add the string to our output array surrounded by li elements so it shows up in the
+                    // DOM as a list
+                    if (getTag(element.tag) !== undefined) {
+                        let itemIndex = nrItems[nrItems.length - 1]
+                        let attrName = getTag(element.tag).name
+                        console.log(count, itemIndex, attrName, str)
+                        // colItems[itemIndex][attrName].push(str)
+                    }
+
+                    // output.push('<li style="color:' + color + ';" title="' + title + '">' + text + '</li>');
+
+                }
             }
         } catch (err) {
             var ex = {
                 exception: err,
-                output: output
+                // output: output
             }
             throw ex;
         }
     }
 
+    function updateFilter() {
+        console.log('updateFilter');
+        maxLength = parseInt($("#maxLength").val());
+        untilTag = $('#untilTag').val();
+
+        dumpFile();
+    }
+
+    $('#maxLength').change(updateFilter);
+    $('#untilTag').change(updateFilter);
+
     // This function will read the file into memory and then start dumping it
-    function dumpFile(file) {
+    function dumpFile() {
+        if (file === undefined) {
+            return;
+        }
         // clear any data currently being displayed as we parse this next file
         document.getElementById('dropZone').innerHTML = '';
         $('#status').removeClass('alert-warning alert-success alert-danger').addClass('alert-info');
@@ -187,23 +267,95 @@
             setTimeout(function () {
 
                 // Invoke the paresDicom function and get back a DataSet object with the contents
-                var dataSet;
                 try {
                     var start = new Date().getTime();
+
                     dataSet = dicomParser.parseDicom(byteArray);
+                    // dump dataSet to console to aid debugging.
+                    if (console) {
+                        console.log(dataSet);
+                    }
                     // Here we call dumpDataSet to recursively iterate through the DataSet and create an array
                     // of strings of the contents.
                     var output = [];
-                    dumpDataSet(dataSet, output);
+                    itemLen = itemLength(dataSet)
+                    if (itemLen !== -1) {
 
+                        let obj = {}
+                        for (let key in TAG_DICT) {
+                            obj[TAG_DICT[key].name] = []
+                        }
+                        for (let i = 0; i < itemLen; i++) {
+                            colItems.push(obj)
+                        }
+                    }
+                    console.log(colItems)
+
+                    dumpDataSet(dataSet);
+
+                    console.log(colItems)
                     // Combine the array of strings into one string and add it to the DOM
-                    document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
+                    // document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
+
+                    function downloadData(data, fileName) {
+                        var blob = new Blob([data], { type: 'application/octet-stream' });
+                        var objectURL = URL.createObjectURL(blob);
+                        var a = document.createElement("a");
+                        document.body.appendChild(a);
+                        a.style = "display: none";
+                        a.href = objectURL;
+                        a.download = fileName;
+                        a.click();
+                        window.URL.revokeObjectURL(objectURL);
+                        $(a).remove();
+                    }
+
+                    function extractEncapsulatedImageFrame(frameIndex) {
+                        var element = dataSet.elements.x7fe00010;
+                        var isRLE = dataSet.string('x00020010') === '1.2.840.10008.1.2.5';
+                        var imageFrame;
+                        if (isRLE) {
+                            // RLE cannot be fragmented so frameIndex = fragmentIndex
+                            imageFrame = dicomParser.readEncapsulatedPixelDataFromFragments(dataSet, element, frameIndex);
+                        } else {
+                            var bot = element.basicOffsetTable;
+                            // if basic offset table is empty, calculate it
+                            if (bot.length === 0) {
+                                bot = dicomParser.createJPEGBasicOffsetTable(dataSet, element);
+                            }
+                            imageFrame = dicomParser.readEncapsulatedImageFrame(dataSet, element, frameIndex, bot);
+                        }
+                        return imageFrame;
+                    }
+
+                    $('.imageFrameDownload').click(function (ev) {
+                        var frameIndex = parseInt($(ev.currentTarget).attr('data-frameIndex'));
+                        var imageFrame = extractEncapsulatedImageFrame(frameIndex);
+                        var sopInstanceUid = dataSet.string('x00080018');
+                        var fileName = sopInstanceUid + "-imageFrame-" + frameIndex + ".dat";
+                        downloadData(imageFrame, fileName);
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                    });
+
+                    $('.dataDownload').click(function (ev) {
+                        var tag = $(ev.currentTarget).attr('data-tag');
+                        var dataOffset = parseInt($(ev.currentTarget).attr('data-dataOffset'));
+                        var length = parseInt($(ev.currentTarget).attr('data-length'));
+                        var data = dicomParser.sharedCopy(dataSet.byteArray, dataOffset, length);
+                        var sopInstanceUid = dataSet.string('x00080018');
+                        var fileName = sopInstanceUid + "-" + tag + "-" + dataOffset + ":" + length + ".dat";
+                        downloadData(data, fileName);
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                    });
 
                     var end = new Date().getTime();
                     var time = end - start;
+                    var statusText = 'Status:';
                     if (dataSet.warnings.length > 0) {
                         $('#status').removeClass('alert-success alert-info alert-danger').addClass('alert-warning');
-                        $('#statusText').html('Status: Warnings encountered while parsing file (file of size ' + byteStr + ' parsed in ' + time + 'ms)');
+                        statusText += 'Warnings encountered while parsing file';
 
                         dataSet.warnings.forEach(function (warning) {
                             $("#warnings").append('<li>' + warning + '</li>');
@@ -213,14 +365,20 @@
                         var pixelData = dataSet.elements.x7fe00010;
                         if (pixelData) {
                             $('#status').removeClass('alert-warning alert-info alert-danger').addClass('alert-success');
-                            $('#statusText').html('Status: Ready (file of size ' + byteStr + ' parsed in ' + time + 'ms)');
+                            statusText += 'Ready';
                         }
                         else {
                             $('#status').removeClass('alert-warning alert-info alert-danger').addClass('alert-success');
-                            $('#statusText').html('Status: Ready - no pixel data found (file of size ' + byteStr + ' parsed in ' + time + 'ms)');
+                            statusText += 'Ready - no pixel data found';
                         }
                     }
+                    statusText += '; file size ' + byteStr;
+                    statusText += '; parse time ' + time + 'ms';
+                    statusText += '<br>';
+                    statusText += uids[(dataSet.string('x00020002'))];
+                    statusText += '; ' + uids[(dataSet.string('x00020010'))];
 
+                    $('#statusText').html(statusText);
 
                 }
                 catch (err) {
@@ -231,14 +389,14 @@
 
                     $('#status').removeClass('alert-success alert-info alert-warning').addClass('alert-danger');
                     document.getElementById('statusText').innerHTML = 'Status: Error - ' + message + ' (file of size ' + byteStr + ' )';
-                    if (err.output) {
-                        document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
-                    }
-                    else if (err.dataSet) {
-                        var output = [];
-                        dumpDataSet(err.dataSet, output);
-                        document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
-                    }
+                    // if (err.output) {
+                    //     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
+                    // }
+                    // else if (err.dataSet) {
+                    //     var output = [];
+                    //     dumpDataSet(err.dataSet, output);
+                    //     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
+                    // }
                 }
             }, 10);
         };
@@ -256,7 +414,8 @@
         var files = evt.dataTransfer.files;
 
         // this UI is only built for a single file so just dump the first one
-        dumpFile(files[0]);
+        file = files[0]
+        dumpFile();
     }
 
     function handleDragOver(evt) {
@@ -270,6 +429,7 @@
     dropZone.addEventListener('dragover', handleDragOver, false);
     dropZone.addEventListener('drop', handleFileSelect, false);
 
+    $('#version').text(dicomParser.version);
 
 </script>
 

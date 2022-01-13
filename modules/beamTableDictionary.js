@@ -37,3 +37,5 @@ var TAG_DICT = {
     '(300A,00E3)': {'tag': '(300A,00E3)', 'vr': 'SQ', 'vm': '1', 'name': 'CompensatorSequence'},
     '(300C,0004)': {'tag': '(300C,0004)', 'vr': 'SQ', 'vm': '1', 'name': 'ReferencedBeamSequence'},
 }
+
+// module.exports = { TAG_DICT };

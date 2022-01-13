@@ -57,11 +57,14 @@
 </body>
 
 <!-- include the dicomParser library -->
-<script src="../node_modules/dicom-parser/dist/dicomParser.js"></script>
+<script src="./node_modules/dicom-parser/dist/dicomParser.js"></script>
 <script>window.dicomParser || document.write('<script src="https://unpkg.com/dicom-parser">\x3C/script>')</script>
 
 <!-- jquery - included to make things easier to demo, not needed by dicomParser -->
 <script src="https://code.jquery.com/jquery-3.4.1.js"></script>
+
+<!-- include the BeamTable dictionary -->
+<script src="./modules/beamTableDictionary.js"></script>
 
 <script>
     class DefaultDict {
@@ -93,14 +96,22 @@
         return itemLength
     }
 
+    function getTag(tag) {
+        var group = tag.substring(1, 5);
+        var element = tag.substring(5, 9);
+        var tagIndex = ("(" + group + "," + element + ")").toUpperCase();
+        var attr = TAG_DICT[tagIndex];
+        return attr;
+    }
+
     // This function iterates through dataSet recursively and adds new HTML strings
     // to the output array passed into it
-    const lists = new DefaultDict(Array)
-    let jsonData = {}
-    let itemNumber = -100
+    let itemLen = -1
+    let beamItems = []
+    let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
     let depth = 0
 
-    function dumpDataSet(dataSet, output, itemLen) {
+    function dumpDataSet(dataSet) {
         let usingTags = {
             'x300a00b0': 'Beam SQ',
             'x300a00c0': 'Beam Number',
@@ -144,19 +155,26 @@
                 let text = ''
 
                 if (element.items) {
-                    depth++
-                    element.items.forEach(function (item, index) {
-                        itemNumber = index
-                        console.log('item #', itemNumber, item.tag)
 
-                        dumpDataSet(item.dataSet, output, itemLen);
-                        itemNumber = index
-                        // console.log('item #', itemNumber, index, item.tag)
+                    let itemNumber = 0;
+                    element.items.forEach(function (item) {
+                        depth++
+                        if (depth === 1) {
+                            if (!nrItems && itemNumber == 0)
+                                nrItems = []
+                            else
+                                nrItems.push(itemNumber)
+                        }
+                        // console.log(depth, itemNumber, nrItems[nrItems.length-1])
+
+                        itemNumber++
+                        dumpDataSet(item.dataSet);
+                        depth--
                     });
-                    depth--
+
                 }
                 else {
-                    if (element.length < 128 && Object.keys(usingTags).includes(element.tag)) {
+                    if (element.length < 128) {
 
                         let str = dataSet.string(propertyName);
 
@@ -177,15 +195,11 @@
                         }
 
                     }
-                    if (text) {
-                        let tmp = []
-                        tmp.push(itemNumber)
-                        tmp.push(text)
-                        lists[usingTags[element.tag]].push(tmp)
-                        console.log('depth:', depth, 'item #', itemNumber, element.tag, usingTags[element.tag], text)
-                        // lists[usingTags[element.tag]].push(text)
-
-                        // console.log('#', itemNumber, text)
+                    if (getTag(element.tag) !== undefined) {
+                        let itemIndex = nrItems[nrItems.length - 1]
+                        let attrName = getTag(element.tag).name
+                        // console.log(depth, itemIndex, attrName, text)
+                        beamItems[itemIndex][attrName].push(text)
                     }
                 }
 
@@ -193,7 +207,7 @@
         } catch (err) {
             var ex = {
                 exception: err,
-                output: lists
+                output: ['hello']
             }
             console.log(err)
             throw ex;
@@ -238,16 +252,20 @@
                     // of strings of the contents.
 
                     console.log(dataSet)
-                    const itemLen = itemLength(dataSet)
-                    var output = new DefaultDict(Array)
-                    dumpDataSet(dataSet, output, itemLen);
+                    itemLen = itemLength(dataSet) // beamItems 길이 계산
+                    if (itemLen !== -1) {
 
-                    console.log(lists)
-
-                    jsonData = JSON.stringify(lists, null, 2);
-
-                    // console.log(jsonData);
-                    // download(jsonData, 'parse.json', 'text/plain');
+                        let obj = {}
+                        for (let key in TAG_DICT) {
+                            obj[TAG_DICT[key].name] = []
+                        }
+                        for (let i = 0; i < itemLen; i++) {
+                            beamItems.push(JSON.parse(JSON.stringify(obj)))
+                        }
+                    }
+                    // console.log(beamItems)
+                    dumpDataSet(dataSet);
+                    console.log(beamItems)
 
 
                 }

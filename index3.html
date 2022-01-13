@@ -305,9 +305,8 @@
                                 nrItems = []
                             else
                                 nrItems.push(itemNumber)
-
                         }
-
+                        
                         output.push('<li>Item #' + itemNumber++ + ' ', nrItems[nrItems.length - 1] + ' ' + item.tag);
                         var lengthText = " length=" + item.length;
                         if (item.hadUndefinedLength) {
