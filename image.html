@@ -237,7 +237,7 @@
 
         let divTag = document.createElement('div');
         divTag.setAttribute('style', 'top:0px;left:0px;position:absolute')
-        for (let i =0; i<header.length; i++) {
+        for (let i = 0; i < header.length; i++) {
             let thisHeader = header[i]
             let liTag = document.createElement('li');
 
@@ -262,6 +262,31 @@
         }
         document.getElementById('dicomImage').appendChild(divTag)
 
+    }
+
+    function showOverlay2(newObj) {
+        // Text 순서, newObj의 key 값과 동일해야 함
+        const header = [ //patientIDpatientName
+            'patientID',
+            'patientName'
+        ]
+
+        let divTag = document.createElement('div');
+
+        // var c = document.getElementById('dicomImage').getBoundingClientRect();
+        // console.log(c);
+        //             divTag.setAttribute('style', 'position:absolute; display:flex; flexDirection:column; alignItems:flex-end; justifyContent:flex-start; rigth:0px; top:0px; pointerEvents:none; padding:10; zIndex:4')
+
+        divTag.setAttribute('style', 'top:0px;left:400px;position:absolute')
+        for (let i = 0; i < header.length; i++) {
+            let thisHeader = header[i]
+
+            let liTag = document.createElement('li');
+            liTag.innerHTML = newObj[thisHeader]
+            liTag.setAttribute("style", "color:white;font-size:0.85em;list-style:none;top:0px;right:0px;text-align:right");
+            divTag.appendChild(liTag)
+        }
+        document.getElementById('dicomImage').appendChild(divTag)
     }
 
 
@@ -366,6 +391,24 @@
 
     }
 
+    function createDRRObj2(beamObj) {
+        let newObj = {}
+
+        try {
+            // patientID
+            var patientID = '';
+            var patientName = '';
+
+            newObj['patientID'] = beamObj['Patient ID'][0] + '(' + beamObj['Other Patient IDs'][0] + ')';
+            newObj['patientName'] = beamObj['Patient\'s Name'][0];
+        }
+        catch (err) {
+            console.log(err)
+        }
+
+        return newObj
+    }
+
     let loaded = false;
 
     function loadAndViewImage(imageId) {
@@ -380,11 +423,14 @@
             }
 
             dumpDataSet(dataSet)
-            console.log(beamObj)
 
             let newObj = createDRRObj(beamObj)
-            console.log(newObj)
+            let newObj2 = createDRRObj2(beamObj)
             showOverlay(newObj)
+            showOverlay2(newObj2)
+
+            console.log(beamObj)
+            console.log(newObj)
 
             const viewport = cornerstone.getDefaultViewportForImage(element, image);
             document.getElementById('toggleModalityLUT').checked = (viewport.modalityLUT !== undefined);
