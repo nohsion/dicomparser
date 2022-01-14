@@ -32,7 +32,7 @@
         <div class="page-header">
             <h1>DICOM Beam Table</h1>
             <p class="lead">
-                Drag and drop a DICOM Part 10 file into the light gray region below for a dump of its elements.
+                Drag and drop a DICOM RT Plan file (<strong>Only Beam!</strong> not Ion Beam)
             </p>
             <p>
                 This example illustrates how to recursively iterate over a parsed data set to dump all data elements
@@ -78,17 +78,6 @@
 <script src="./modules/beamTableDictionary.js"></script>
 
 <script>
-    class DefaultDict {
-        constructor(defaultInit) {
-            return new Proxy({}, {
-                get: (target, name) => name in target ?
-                    target[name] :
-                    (target[name] = typeof defaultInit === 'function' ?
-                        new defaultInit().valueOf() :
-                        defaultInit)
-            })
-        }
-    }
     // helper function to see if a string only has ascii characters in it
     function isASCII(str) {
         return /^[\x00-\x7F]*$/.test(str);
@@ -100,7 +89,8 @@
 
             let element = dataSet.elements[propertyName];
 
-            if (element.tag === 'x300a00b0') {
+            // Beam SQ or Ion Beam SQ
+            if (element.tag === 'x300a00b0' || element.tag === 'x300a03a2') {
                 itemLength = element.items.length
             }
         }
@@ -199,7 +189,7 @@
         } catch (err) {
             var ex = {
                 exception: err,
-                output: ['hello']
+                output: beamItems
             }
             console.log(err)
             throw ex;
@@ -207,6 +197,36 @@
     }
 
     function showTable(newBeamTable) {
+        // Table ROW 순서, newBeamTable의 key 값과 동일해야 함
+        const header = [
+            'Name',
+            'Machine Name',
+            'Technique',
+            'Energy',
+            'Dose Rate (MU/min)',
+            'M/U',
+            'SSD (cm)',
+            'Gantry Rtn. (degree)',
+            'Colli Rtn. (degree)',
+            'Field X (cm)',
+            'X1 (cm)',
+            'X2 (cm)',
+            'Field Y (cm)',
+            'Y1 (cm)',
+            'Y2 (cm)',
+            'MLC / Block',
+            'Wedge Angle',
+            'Wedge Code',
+            'Electron Applicator (cm)',
+            // 'Couch Rtn (degree)',
+            'Bolus',
+            // 'Left / Right (cm)',
+            // 'Up / Down (cm)',
+            // 'In / Out (cm)',
+            'Compensator (Y/N)',
+            // 'Accessories (Y/N)',
+            'Thickness (cm)'
+        ]
         let table = document.createElement('table');
         let thead = document.createElement('thead');
         let tbody = document.createElement('tbody');
@@ -234,25 +254,45 @@
 
 
         // Create Table Body
-        for (let key in newBeamTable[0]) {
-            if (key === 'BeamItemName') continue
-            trTag = document.createElement('tr') // trTag 초기화
-            console.log(key)
-            // Attr Name
-            let tdTag = document.createElement('td')
-            tdTag.innerHTML = key
-            trTag.appendChild(tdTag)
+        for (let i = 0; i < header.length; i++) {
+            const thisHeader = header[i]
 
-            // Value
-            for (let i in newBeamTable) {
-                // console.log(i, newBeamTable[i][key])
+            trTag = document.createElement('tr') // trTag 초기화
+
+            // Attr Name(ex. Name, Machine Name, ...)
+            let tdTag = document.createElement('td')
+            tdTag.innerHTML = thisHeader
+            trTag.appendChild(tdTag)
+            
+            for (let c = 0; c < newBeamTable.length; c++) {
+                // console.log(thisHeader, newBeamTable[c][thisHeader])
                 tdTag = document.createElement('td')
-                tdTag.innerHTML = newBeamTable[i][key]
+                tdTag.innerHTML = newBeamTable[c][thisHeader]
                 trTag.appendChild(tdTag)
             }
-
+            
             tbody.appendChild(trTag)
         }
+
+        // for (let key in newBeamTable[0]) {
+        //     if (key === 'BeamItemName') continue
+        //     trTag = document.createElement('tr') // trTag 초기화
+        //     console.log(key)
+        //     // Attr Name(ex. Name, Machine Name, ...)
+        //     let tdTag = document.createElement('td')
+        //     tdTag.innerHTML = key
+        //     trTag.appendChild(tdTag)
+
+        //     // Value
+        //     for (let i in newBeamTable) {
+        //         // console.log(i, newBeamTable[i][key])
+        //         tdTag = document.createElement('td')
+        //         tdTag.innerHTML = newBeamTable[i][key]
+        //         trTag.appendChild(tdTag)
+        //     }
+
+        //     tbody.appendChild(trTag)
+        // }
 
     }
 
@@ -281,7 +321,7 @@
             var kb = byteArray.length / 1024;
             var mb = kb / 1024;
             var byteStr = mb > 1 ? mb.toFixed(3) + " MB" : kb.toFixed(0) + " KB";
-            document.getElementById('statusText').innerHTML = 'Status: Parsing ' + byteStr + ' bytes, please wait..';
+            document.getElementById('statusText').innerHTML = 'Status: Parsing ' + byteStr + ' bytes';
             // set a short timeout to do the parse so the DOM has time to update itself with the above message
             setTimeout(function () {
 
@@ -307,11 +347,11 @@
                             beamItems.push(JSON.parse(JSON.stringify(obj)))
                         }
                     }
-                    // console.log(beamItems)
+                    // console.log(itemLen, beamItems)
                     dumpDataSet(dataSet);
-                    console.log(beamItems)
 
                     newBeams = createRTPACS(beamItems, itemLen)
+                    console.log(beamItems)
                     console.log(newBeams)
 
                     showTable(newBeams)
@@ -365,7 +405,7 @@
 
                     // # Machine Name 처리
                     if (attrName === 'TreatmentMachineName') {
-                        newBeamItems[i]['Machine NAme'] = beamItems[i][attrName][0]
+                        newBeamItems[i]['Machine Name'] = beamItems[i][attrName][0]
                     }
 
                     // # Technique 처리
@@ -405,7 +445,7 @@
 
                     // # SSD 처리
                     if (attrName === 'SourceToSurfaceDistance') {
-                        newBeamItems[i]['SSD'] = beamItems[i][attrName][0]
+                        newBeamItems[i]['SSD (cm)'] = beamItems[i][attrName][0]
                     }
 
                     // # Gantry Rtn. (degree) 계산
