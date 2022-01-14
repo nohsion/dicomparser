@@ -14,4 +14,4 @@
 ![image](https://user-images.githubusercontent.com/68843443/149470773-237e0f77-26e8-45de-a9a2-e221db9a4e58.png)
 
 ### 2. RT Image Example
-![image](https://user-images.githubusercontent.com/68843443/149489319-bbf3e652-81b6-4ebc-9bb7-c059b2a50a73.png)
+![image](https://user-images.githubusercontent.com/68843443/149490432-6d0656ea-7382-4de1-89dc-db31d96d5614.png)
