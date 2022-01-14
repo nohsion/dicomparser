@@ -166,11 +166,15 @@
                         /*
                             Additional Parsing processing
                         */
-                        // SSD, MU, BeamDose 단위 변환
-                        if (element.tag === 'x300a0130' || element.tag === 'x300a0086' ||
-                            element.tag === 'x300a0084' || element.tag === 'x300a011e' ||
-                            element.tag === 'x300a0120') {
+                        // MU, BeamDose 단위 변환
+                        if (element.tag === 'x300a0086' || element.tag === 'x300a0084' ||
+                            element.tag === 'x300a011e' || element.tag === 'x300a0120') {
                             str = (Number(str).toFixed(1)).toString()
+                        }
+
+                        // SSD (mm->cm 변환)
+                        if (element.tag === 'x300a0130') {
+                            str = ((Number(str) / 10).toFixed(1)).toString()
                         }
 
                         let stringIsAscii = isASCII(str);
@@ -212,25 +216,44 @@
 
         document.getElementById('dropZone').appendChild(table)
 
-        let rowTag = document.createElement('tr')
+        let trTag = document.createElement('tr')
 
         // Create Table Head
         for (let i = -1; i < newBeamTable.length; i++) {
             let headTag = document.createElement('th')
             if (i === -1) {
                 headTag.innerHTML = 'Attr Name.'
-                rowTag.appendChild(headTag)
+                trTag.appendChild(headTag)
                 continue
             }
-            
+
             headTag.innerHTML = newBeamTable[i].BeamItemName
-            rowTag.appendChild(headTag)
-            // console.log(newBeamTable[i].BeamItemName)
+            trTag.appendChild(headTag)
         }
-        thead.appendChild(rowTag)
+        thead.appendChild(trTag)
+
 
         // Create Table Body
-    
+        for (let key in newBeamTable[0]) {
+            if (key === 'BeamItemName') continue
+            trTag = document.createElement('tr') // trTag 초기화
+            console.log(key)
+            // Attr Name
+            let tdTag = document.createElement('td')
+            tdTag.innerHTML = key
+            trTag.appendChild(tdTag)
+
+            // Value
+            for (let i in newBeamTable) {
+                // console.log(i, newBeamTable[i][key])
+                tdTag = document.createElement('td')
+                tdTag.innerHTML = newBeamTable[i][key]
+                trTag.appendChild(tdTag)
+            }
+
+            tbody.appendChild(trTag)
+        }
+
     }
 
     function download(content, fileName, contentType) {
@@ -328,7 +351,7 @@
                     let attrName = item
 
                     // # Beam Item Name 정하기
-                    if (beamItems[i].BeamDose) {
+                    if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0])) {
                         beamItemName = beamItems[i].BeamNumber + '. ' + beamItems[i].RadiationType
                     } else {
                         beamItemName = beamItems[i].TreatmentDeliveryType
@@ -347,7 +370,12 @@
 
                     // # Technique 처리
                     if (attrName === 'BeamType') {
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['Technique'] = ''
+                            continue
+                        }
                         newBeamItems[i]['Technique'] = beamItems[i][attrName][0]
+
                     }
 
                     // # Position 처리
@@ -357,12 +385,22 @@
 
                     // # Dose Rate (MU/min) 처리
                     if (attrName === 'DoseRateSet') {
-                        newBeamItems[i]['Dose Rate (MU/min)'] = beamItems[i][attrName][0]
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['Dose Rate (MU/min)'] = ''
+                            continue
+                        } else {
+                            newBeamItems[i]['Dose Rate (MU/min)'] = beamItems[i][attrName][0]
+                        }
                     }
 
                     // # M/U 처리
                     if (attrName === 'BeamMeterset') {
-                        newBeamItems[i]['M/U'] = beamItems[i][attrName][0]
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['M/U'] = ''
+                            continue
+                        } else {
+                            newBeamItems[i]['M/U'] = beamItems[i][attrName][0]
+                        }
                     }
 
                     // # SSD 처리
@@ -371,10 +409,14 @@
                     }
 
                     // # Gantry Rtn. (degree) 계산
-                    if (attrName === 'GantryAngle' && beamItems[i].GantryAngle.length >= 2) {
-                        gantryRtn = beamItems[i].GantryAngle[0] + '/' + beamItems[i].GantryAngle[beamItems[i].GantryAngle.length - 1]
-                        gantryRtn += ' (' + beamItems[i].GantryRotationDirection[0] + ')'
-                        newBeamItems[i]['Gantry Rtn. (degree)'] = gantryRtn
+                    if (attrName === 'GantryAngle') {
+                        if (beamItems[i].GantryAngle.length >= 2) {
+                            gantryRtn = beamItems[i].GantryAngle[0] + '/' + beamItems[i].GantryAngle[beamItems[i].GantryAngle.length - 1]
+                            gantryRtn += ' (' + beamItems[i].GantryRotationDirection[0] + ')'
+                            newBeamItems[i]['Gantry Rtn. (degree)'] = gantryRtn
+                        } else {
+                            newBeamItems[i]['Gantry Rtn. (degree)'] = beamItems[i].GantryAngle[0]
+                        }
                     }
 
                     // # Colli Rtn. (degree) 처리
@@ -439,13 +481,20 @@
 
                     // # Nominal Beam Energy 단위 표시
                     if (attrName === 'NominalBeamEnergy') {
-                        if (beamItems[i].RadiationType[0] === 'PHOTON') {
-                            newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MV'
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['Energy'] = ''
+                            continue
+                        } else {
+                            if (beamItems[i].RadiationType[0] === 'PHOTON') {
+                                newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MV'
+                            }
+                            else if (beamItems[i].RadiationType[0] === 'NEUTRON' || beamItems[i].RadiationType[0] === 'ELECTRON'
+                                || beamItems[i].RadiationType[0] === 'PROTON') {
+                                newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MeV'
+                            }
                         }
-                        else if (beamItems[i].RadiationType[0] === 'NEUTRON' || beamItems[i].RadiationType[0] === 'ELECTRON'
-                            || beamItems[i].RadiationType[0] === 'PROTON') {
-                            newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MeV'
-                        }
+
+
                     }
 
                     // # Number of Boli, Compensators, Accessories,
@@ -486,7 +535,10 @@
                         newBeamItems[i]['Wedge Angle'] = ''
                         newBeamItems[i]['Wedge Code'] = 'NONE'
                     } else {
-                        newBeamItems[i]['Wedge Code'] = beamItems[i].WedgeID[0] // 수정 필요
+                        wedgeCode = beamItems[i].WedgeID[0]
+                        wedgeCode += '(' + beamItems[i].WedgePosition[0] + ')'
+                        newBeamItems[i]['Wedge Angle'] = beamItems[i].WedgeAngle[0]
+                        newBeamItems[i]['Wedge Code'] = wedgeCode // 수정 필요
                     }
 
                     // # Electron Applicator 처리
@@ -504,8 +556,6 @@
                     }
 
                     // # Couch Rtn 처리
-
-
 
 
                 } catch (err) {
