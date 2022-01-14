@@ -217,7 +217,7 @@
         const header = [
             'Name',
             'Date',
-            'Beam Number',
+            'Ref. Beam No',
             'Machine Name',
             'SAD',
             // 'SSD',
@@ -239,8 +239,23 @@
         divTag.setAttribute('style', 'top:0px;left:0px;position:absolute')
         for (let i =0; i<header.length; i++) {
             let thisHeader = header[i]
-
             let liTag = document.createElement('li');
+
+            if (!newObj[thisHeader]) continue
+            if (thisHeader === 'Name') {
+                liTag.innerHTML = newObj[thisHeader]
+                liTag.setAttribute("style", "color:white;font-size:1.2em;font-weight:bold;list-style:none;top:0px;left:0px;");
+                divTag.appendChild(liTag)
+                continue
+            }
+
+            if (thisHeader === 'Date') {
+                liTag.innerHTML = newObj[thisHeader]
+                liTag.setAttribute("style", "color:white;font-size:0.85em;list-style:none;top:0px;left:0px;");
+                divTag.appendChild(liTag)
+                continue
+            }
+
             liTag.innerHTML = thisHeader + ': ' + newObj[thisHeader]
             liTag.setAttribute("style", "color:white;font-size:0.85em;list-style:none;top:0px;left:0px;");
             divTag.appendChild(liTag)
@@ -260,8 +275,15 @@
 
             // # Date (Date + Time)
             if (beamObj['Content Date'] && beamObj['Content Time']) {
-                let time = ' ' + beamObj['Content Time'][0].split('.')[0]
-                newObj['Date'] = beamObj['Content Date'][0] + time
+                let time = beamObj['Content Date'][0] + beamObj['Content Time'][0].split('.')[0]
+                let Y = time.slice(0, 4)
+                let M = time.slice(4, 6)
+                let D = time.slice(6, 8)
+                let h = time.slice(8, 10)
+                let m = time.slice(10, 12)
+                let s = time.slice(12, 14)
+                let date = new Date(Y, M, D, h, m, s)
+                newObj['Date'] = date.toLocaleString()
             } else {
                 newObj['Date'] = ''
             }
@@ -327,7 +349,7 @@
             newObj['SAD'] = sad
 
             // # Beam Number
-            newObj['Beam Number'] = beamObj['Referenced Beam Number'][0]
+            newObj['Ref. Beam No'] = beamObj['Referenced Beam Number'][0]
 
             // # Machine Name
             newObj['Machine Name'] = beamObj['Radiation Machine Name'][0]
