@@ -6,10 +6,21 @@
 
     <style>
         #dropZone {
-            height: calc(100% - 250px);
+            height: 500px;
             width: 100%;
             background-color: #F0F0F0;
             overflow: auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+
+        th,
+        td {
+            padding: 10px 20px;
+            border: 1px solid #000;
         }
     </style>
 
@@ -18,32 +29,27 @@
 <body>
     <div class="container">
 
-        <div>
-            <h1>DICOM Dump with Data Dictionary v<span id="version"></span></h1>
+        <div class="page-header">
+            <h1>DICOM Beam Table</h1>
             <p class="lead">
-                DICOM files dropped here are not uploaded anywhere, all processing
+                Drag and drop a DICOM RT Plan file (<strong>Only Beam!</strong> not Ion Beam)
+            </p>
+            <p>
+                This example illustrates how to recursively iterate over a parsed data set to dump all data elements
+                into a tree like structure. Note that DICOM files dropped here are not uploaded anywhere, all processing
                 is done inside your web browser in Javascript.
             </p>
-            <form class="form-inline">
-                <div class="form-group">
-                    <label for="maxLength">Max Length</label>
-                    <input type="text" class="form-control" id="maxLength" placeholder="(e.g. 128)" value="128">
-                </div>
-                <div class="form-group">
-                    <label for="untilTag">Until Tag</label>
-                    <input type="text" class="form-control" id="untilTag" placeholder="(e.g. x7fe00010)">
-                </div>
-                <br>
+            <strong>Use of this example require IE10+ or any other modern browser.</strong>
+        </div>
 
-            </form>
-            <div id="status" class="alert alert-success">
-                <div id="statusText">
-                    Status: Ready (no file loaded)
-                </div>
-                <ul id="warnings">
 
-                </ul>
+        <div id="status" class="alert alert-success">
+            <div id="statusText">
+                Status: Ready (no file loaded)
             </div>
+            <ul id="warnings">
+
+            </ul>
         </div>
 
         <div class="row">
@@ -51,11 +57,10 @@
                 <div id="dropZone">
 
                     <div class="text-center" style="margin-top:225px;">
-                        <h3>Drag and drop a DICOM P10 file here to dump its elements</h3>
+                        <h3>Drag DICOM P10 file here to dump its elements</h3>
                     </div>
 
                 </div>
-
             </div>
         </div>
 
@@ -69,44 +74,13 @@
 <!-- jquery - included to make things easier to demo, not needed by dicomParser -->
 <script src="https://code.jquery.com/jquery-3.4.1.js"></script>
 
-<!-- pako - needed to support deflated transfer syntax -->
-<script src="./node_modules/pako/dist/pako.min.js"></script>
-
-<!-- include the data dictionary -->
-<script src="./modules/dataDictionary.js"></script>
-
 <!-- include the BeamTable dictionary -->
 <script src="./modules/beamTableDictionary.js"></script>
 
-<!-- include the uids -->
-<script src="./modules/uids.js"></script>
-
-<!-- include Rusha for SHA1 hashing -->
-<script src="./node_modules/rusha/dist/rusha.min.js"></script>
-
-
 <script>
-
-    var dataSet; // the parsed dataSet as global so we can interact with it from console
-
-    var maxLength = 128;
-    var untilTag = "";
-
     // helper function to see if a string only has ascii characters in it
     function isASCII(str) {
         return /^[\x00-\x7F]*$/.test(str);
-    }
-
-    function escapeSpecialCharacters(str) {
-        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    }
-
-    function dataDownloadLink(element, text) {
-        var linkText = "<a class='dataDownload' href='#' data-tag='" + element.tag + "'";
-        linkText += " data-dataOffset='" + element.dataOffset + "'";
-        linkText += " data-length='" + element.length + "'";
-        linkText += ">" + text + "</a>";
-        return linkText;
     }
 
     function itemLength(dataSet) {
@@ -115,19 +89,14 @@
 
             let element = dataSet.elements[propertyName];
 
-            if (element.tag === 'x300a00b0') {
+            // Beam SQ or Ion Beam SQ
+            if (element.tag === 'x300a00b0' || element.tag === 'x300a03a2') {
                 itemLength = element.items.length
             }
         }
         return itemLength
     }
 
-    let itemLen = -1
-    let colItems = []
-    let count = 0
-    let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
-    // This function iterates through dataSet recursively and adds new HTML strings
-    // to the output array passed into it
     function getTag(tag) {
         var group = tag.substring(1, 5);
         var element = tag.substring(5, 9);
@@ -136,117 +105,207 @@
         return attr;
     }
 
+    // This function iterates through dataSet recursively and adds new HTML strings
+    // to the output array passed into it
+    let itemLen = -1
+    let beamItems = []
+    let nrItems = [] // 해당 item번호 = nrItems[nrItems.length-1]
+    let depth = 0
+    let newBeams = new Array()
+
     function dumpDataSet(dataSet) {
 
         try {
 
-            var keys = [];
             for (var propertyName in dataSet.elements) {
-                // depth=0일 때는, items가 존재하는 Sequence만 keys에 추가.
-                if (count === 0) {
-                    if (getTag(propertyName) && getTag(propertyName)['vr'] === 'SQ') {
-                        keys.push(propertyName);
-                        continue
-                    }
-                }
-                else {
-                    keys.push(propertyName)
-                }
 
-            }
-            keys.sort();
-            if (keys && keys.length) {
-                console.log(keys)
-            }
-
-
-            // the dataSet.elements object contains properties for each element parsed.  The name of the property
-            // is based on the elements tag and looks like 'xGGGGEEEE' where GGGG is the group number and EEEE is the
-            // element number both with lowercase hexadecimal letters.  For example, the Series Description DICOM element 0008,103E would
-            // be named 'x0008103e'.  Here we iterate over each property (element) so we can build a string describing its
-            // contents to add to the output array
-            for (var k = 0; k < keys.length; k++) {
-                var propertyName = keys[k];
                 var element = dataSet.elements[propertyName];
+                let text = ''
 
-                var text = "";
-                var title = "";
-
-                var tag = getTag(element.tag);
-
-                // Here we check for Sequence items and iterate over them if present.  items will not be set in the
-                // element object for elements that don't have SQ VR type.  Note that implicit little endian
-                // sequences will are currently not parsed.
                 if (element.items) {
-                    // output.push('<li>' + text + '</li>');
-                    // output.push('<ul>');
+                    // Tolerance Table Sequence는 필요 없어서 제외
+                    if (element.tag === 'x300a0040') continue
 
-                    // each item contains its own data set so we iterate over the items
-                    // and recursively call this function
-                    var itemNumber = 0;
-                    for (let item of element.items) {
-                        count++
-                        if (count === 1) {
+                    let itemNumber = 0;
+                    element.items.forEach(function (item) {
+                        depth++
+                        // Beam Dose SQ는 depth가 달라서 예외 처리
+                        if (element.tag === 'x300c0004') {
+                            // console.log('this is referenced beam SQ', itemNumber)
+                            nrItems.push(itemNumber)
+                        }
+                        if (depth === 1) {
                             if (!nrItems && itemNumber == 0)
                                 nrItems = []
                             else
                                 nrItems.push(itemNumber)
                         }
+                        // console.log(depth, itemNumber, nrItems[nrItems.length-1])
 
-                        // output.push('<li>Item #' + itemNumber++ + ' ', nrItems[nrItems.length - 1] + ' ' + item.tag);
-                        var lengthText = " length=" + item.length;
-
-                        // output.push('</li>');
-                        // output.push('<ul>');
+                        itemNumber++
                         dumpDataSet(item.dataSet);
-                        count--
-                        // output.push('</ul>');
-                    };
+                        depth--
+                    });
 
-                    // output.push('</ul>');
                 }
                 else {
-                    // if the length of the element is less than 128 we try to show it.  We put this check in
-                    // to avoid displaying large strings which makes it harder to use.
+                    if (element.length < 128) {
 
-                    // finally we add the string to our output array surrounded by li elements so it shows up in the
-                    // DOM as a list
+                        let str = dataSet.string(propertyName);
+
+                        /*
+                            Additional Parsing processing
+                        */
+                        // MU, BeamDose 단위 변환
+                        if (element.tag === 'x300a0086' || element.tag === 'x300a0084' ||
+                            element.tag === 'x300a011e' || element.tag === 'x300a0120') {
+                            str = (Number(str).toFixed(1)).toString()
+                        }
+
+                        // SSD (mm->cm 변환)
+                        if (element.tag === 'x300a0130') {
+                            str = ((Number(str) / 10).toFixed(1)).toString()
+                        }
+
+                        let stringIsAscii = isASCII(str);
+
+                        if (stringIsAscii) {
+                            if (str !== undefined) {
+                                text = str
+                            }
+                        }
+
+                    }
+                    // 실제 beamItems에 추가하는 부분
                     if (getTag(element.tag) !== undefined) {
                         let itemIndex = nrItems[nrItems.length - 1]
                         let attrName = getTag(element.tag).name
-                        console.log(count, itemIndex, attrName, str)
-                        // colItems[itemIndex][attrName].push(str)
+                        // console.log(depth, itemIndex, attrName, text)
+                        beamItems[itemIndex][attrName].push(text)
                     }
-
-                    // output.push('<li style="color:' + color + ';" title="' + title + '">' + text + '</li>');
-
                 }
+
             }
         } catch (err) {
             var ex = {
                 exception: err,
-                // output: output
+                output: beamItems
             }
+            console.log(err)
             throw ex;
         }
     }
 
-    function updateFilter() {
-        console.log('updateFilter');
-        maxLength = parseInt($("#maxLength").val());
-        untilTag = $('#untilTag').val();
+    function showTable(newBeamTable) {
+        // Table ROW 순서, newBeamTable의 key 값과 동일해야 함
+        const header = [
+            'Name',
+            'Machine Name',
+            'Technique',
+            'Energy',
+            'Dose Rate (MU/min)',
+            'M/U',
+            'SSD (cm)',
+            'Gantry Rtn. (degree)',
+            'Colli Rtn. (degree)',
+            'Field X (cm)',
+            'X1 (cm)',
+            'X2 (cm)',
+            'Field Y (cm)',
+            'Y1 (cm)',
+            'Y2 (cm)',
+            'MLC / Block',
+            'Wedge Angle',
+            'Wedge Code',
+            'Electron Applicator (cm)',
+            // 'Couch Rtn (degree)',
+            'Bolus',
+            // 'Left / Right (cm)',
+            // 'Up / Down (cm)',
+            // 'In / Out (cm)',
+            'Compensator (Y/N)',
+            // 'Accessories (Y/N)',
+            'Thickness (cm)'
+        ]
+        let table = document.createElement('table');
+        let thead = document.createElement('thead');
+        let tbody = document.createElement('tbody');
 
-        dumpFile();
+        table.appendChild(thead);
+        table.appendChild(tbody);
+
+        document.getElementById('dropZone').appendChild(table)
+
+        let trTag = document.createElement('tr')
+
+        // Create Table Head
+        for (let i = -1; i < newBeamTable.length; i++) {
+            let headTag = document.createElement('th')
+            if (i === -1) {
+                headTag.innerHTML = 'Attr Name.'
+                trTag.appendChild(headTag)
+                continue
+            }
+
+            headTag.innerHTML = newBeamTable[i].BeamItemName
+            trTag.appendChild(headTag)
+        }
+        thead.appendChild(trTag)
+
+
+        // Create Table Body
+        for (let i = 0; i < header.length; i++) {
+            const thisHeader = header[i]
+
+            trTag = document.createElement('tr') // trTag 초기화
+
+            // Attr Name(ex. Name, Machine Name, ...)
+            let tdTag = document.createElement('td')
+            tdTag.innerHTML = thisHeader
+            trTag.appendChild(tdTag)
+            
+            for (let c = 0; c < newBeamTable.length; c++) {
+                // console.log(thisHeader, newBeamTable[c][thisHeader])
+                tdTag = document.createElement('td')
+                tdTag.innerHTML = newBeamTable[c][thisHeader]
+                trTag.appendChild(tdTag)
+            }
+            
+            tbody.appendChild(trTag)
+        }
+
+        // for (let key in newBeamTable[0]) {
+        //     if (key === 'BeamItemName') continue
+        //     trTag = document.createElement('tr') // trTag 초기화
+        //     console.log(key)
+        //     // Attr Name(ex. Name, Machine Name, ...)
+        //     let tdTag = document.createElement('td')
+        //     tdTag.innerHTML = key
+        //     trTag.appendChild(tdTag)
+
+        //     // Value
+        //     for (let i in newBeamTable) {
+        //         // console.log(i, newBeamTable[i][key])
+        //         tdTag = document.createElement('td')
+        //         tdTag.innerHTML = newBeamTable[i][key]
+        //         trTag.appendChild(tdTag)
+        //     }
+
+        //     tbody.appendChild(trTag)
+        // }
+
     }
 
-    $('#maxLength').change(updateFilter);
-    $('#untilTag').change(updateFilter);
+    function download(content, fileName, contentType) {
+        var a = document.createElement("a");
+        var file = new Blob([content], { type: contentType });
+        a.href = URL.createObjectURL(file);
+        a.download = fileName;
+        a.click();
+    }
 
     // This function will read the file into memory and then start dumping it
-    function dumpFile() {
-        if (file === undefined) {
-            return;
-        }
+    function dumpFile(file) {
         // clear any data currently being displayed as we parse this next file
         document.getElementById('dropZone').innerHTML = '';
         $('#status').removeClass('alert-warning alert-success alert-danger').addClass('alert-info');
@@ -262,141 +321,44 @@
             var kb = byteArray.length / 1024;
             var mb = kb / 1024;
             var byteStr = mb > 1 ? mb.toFixed(3) + " MB" : kb.toFixed(0) + " KB";
-            document.getElementById('statusText').innerHTML = 'Status: Parsing ' + byteStr + ' bytes, please wait..';
+            document.getElementById('statusText').innerHTML = 'Status: Parsing ' + byteStr + ' bytes';
             // set a short timeout to do the parse so the DOM has time to update itself with the above message
             setTimeout(function () {
 
                 // Invoke the paresDicom function and get back a DataSet object with the contents
+                var dataSet;
                 try {
                     var start = new Date().getTime();
-
                     dataSet = dicomParser.parseDicom(byteArray);
-                    // dump dataSet to console to aid debugging.
-                    if (console) {
-                        console.log(dataSet);
-                    }
                     // Here we call dumpDataSet to recursively iterate through the DataSet and create an array
                     // of strings of the contents.
-                    var output = [];
-                    itemLen = itemLength(dataSet)
+
+                    console.log(dataSet)
+                    itemLen = itemLength(dataSet) // beamItems 길이 계산
                     if (itemLen !== -1) {
 
                         let obj = {}
                         for (let key in TAG_DICT) {
+                            if (TAG_DICT[key].vr === 'SQ')
+                                continue
                             obj[TAG_DICT[key].name] = []
                         }
                         for (let i = 0; i < itemLen; i++) {
-                            colItems.push(obj)
+                            beamItems.push(JSON.parse(JSON.stringify(obj)))
                         }
                     }
-                    console.log(colItems)
-
+                    // console.log(itemLen, beamItems)
                     dumpDataSet(dataSet);
 
-                    console.log(colItems)
-                    // Combine the array of strings into one string and add it to the DOM
-                    // document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
+                    newBeams = createRTPACS(beamItems, itemLen)
+                    console.log(beamItems)
+                    console.log(newBeams)
 
-                    function downloadData(data, fileName) {
-                        var blob = new Blob([data], { type: 'application/octet-stream' });
-                        var objectURL = URL.createObjectURL(blob);
-                        var a = document.createElement("a");
-                        document.body.appendChild(a);
-                        a.style = "display: none";
-                        a.href = objectURL;
-                        a.download = fileName;
-                        a.click();
-                        window.URL.revokeObjectURL(objectURL);
-                        $(a).remove();
-                    }
-
-                    function extractEncapsulatedImageFrame(frameIndex) {
-                        var element = dataSet.elements.x7fe00010;
-                        var isRLE = dataSet.string('x00020010') === '1.2.840.10008.1.2.5';
-                        var imageFrame;
-                        if (isRLE) {
-                            // RLE cannot be fragmented so frameIndex = fragmentIndex
-                            imageFrame = dicomParser.readEncapsulatedPixelDataFromFragments(dataSet, element, frameIndex);
-                        } else {
-                            var bot = element.basicOffsetTable;
-                            // if basic offset table is empty, calculate it
-                            if (bot.length === 0) {
-                                bot = dicomParser.createJPEGBasicOffsetTable(dataSet, element);
-                            }
-                            imageFrame = dicomParser.readEncapsulatedImageFrame(dataSet, element, frameIndex, bot);
-                        }
-                        return imageFrame;
-                    }
-
-                    $('.imageFrameDownload').click(function (ev) {
-                        var frameIndex = parseInt($(ev.currentTarget).attr('data-frameIndex'));
-                        var imageFrame = extractEncapsulatedImageFrame(frameIndex);
-                        var sopInstanceUid = dataSet.string('x00080018');
-                        var fileName = sopInstanceUid + "-imageFrame-" + frameIndex + ".dat";
-                        downloadData(imageFrame, fileName);
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                    });
-
-                    $('.dataDownload').click(function (ev) {
-                        var tag = $(ev.currentTarget).attr('data-tag');
-                        var dataOffset = parseInt($(ev.currentTarget).attr('data-dataOffset'));
-                        var length = parseInt($(ev.currentTarget).attr('data-length'));
-                        var data = dicomParser.sharedCopy(dataSet.byteArray, dataOffset, length);
-                        var sopInstanceUid = dataSet.string('x00080018');
-                        var fileName = sopInstanceUid + "-" + tag + "-" + dataOffset + ":" + length + ".dat";
-                        downloadData(data, fileName);
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                    });
-
-                    var end = new Date().getTime();
-                    var time = end - start;
-                    var statusText = 'Status:';
-                    if (dataSet.warnings.length > 0) {
-                        $('#status').removeClass('alert-success alert-info alert-danger').addClass('alert-warning');
-                        statusText += 'Warnings encountered while parsing file';
-
-                        dataSet.warnings.forEach(function (warning) {
-                            $("#warnings").append('<li>' + warning + '</li>');
-                        });
-                    }
-                    else {
-                        var pixelData = dataSet.elements.x7fe00010;
-                        if (pixelData) {
-                            $('#status').removeClass('alert-warning alert-info alert-danger').addClass('alert-success');
-                            statusText += 'Ready';
-                        }
-                        else {
-                            $('#status').removeClass('alert-warning alert-info alert-danger').addClass('alert-success');
-                            statusText += 'Ready - no pixel data found';
-                        }
-                    }
-                    statusText += '; file size ' + byteStr;
-                    statusText += '; parse time ' + time + 'ms';
-                    statusText += '<br>';
-                    statusText += uids[(dataSet.string('x00020002'))];
-                    statusText += '; ' + uids[(dataSet.string('x00020010'))];
-
-                    $('#statusText').html(statusText);
+                    showTable(newBeams)
 
                 }
                 catch (err) {
-                    var message = err;
-                    if (err.exception) {
-                        message = err.exception;
-                    }
-
-                    $('#status').removeClass('alert-success alert-info alert-warning').addClass('alert-danger');
-                    document.getElementById('statusText').innerHTML = 'Status: Error - ' + message + ' (file of size ' + byteStr + ' )';
-                    // if (err.output) {
-                    //     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
-                    // }
-                    // else if (err.dataSet) {
-                    //     var output = [];
-                    //     dumpDataSet(err.dataSet, output);
-                    //     document.getElementById('dropZone').innerHTML = '<ul>' + output.join('') + '</ul>';
-                    // }
+                    console.log(err)
                 }
             }, 10);
         };
@@ -404,6 +366,247 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // RTPACS의 BeamTable에 맞게 작업하는 함수
+    function createRTPACS(beamItems, itemLen) {
+
+        let newBeamItems = []
+        for (let i = 0; i < itemLen; i++) {
+            let obj = {}
+            newBeamItems.push(obj)
+        }
+
+        let gantryRtn = ''
+        let fieldX = ''
+        let fieldY = ''
+        let x1 = ''
+        let x2 = ''
+        let y1 = ''
+        let y2 = ''
+        let beamItemName = ''
+
+        for (let i = 0; i < beamItems.length; i++) {
+            for (let item in beamItems[i]) {
+
+                try {
+                    let attrName = item
+
+                    // # Beam Item Name 정하기
+                    if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0])) {
+                        beamItemName = beamItems[i].BeamNumber + '. ' + beamItems[i].RadiationType
+                    } else {
+                        beamItemName = beamItems[i].TreatmentDeliveryType
+                    }
+                    newBeamItems[i]['BeamItemName'] = beamItemName
+
+                    // # Name 처리
+                    if (attrName === 'BeamName') {
+                        newBeamItems[i]['Name'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Machine Name 처리
+                    if (attrName === 'TreatmentMachineName') {
+                        newBeamItems[i]['Machine Name'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Technique 처리
+                    if (attrName === 'BeamType') {
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['Technique'] = ''
+                            continue
+                        }
+                        newBeamItems[i]['Technique'] = beamItems[i][attrName][0]
+
+                    }
+
+                    // # Position 처리
+                    if (attrName === 'PatientPosition') {
+                        newBeamItems[i]['Position'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Dose Rate (MU/min) 처리
+                    if (attrName === 'DoseRateSet') {
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['Dose Rate (MU/min)'] = ''
+                            continue
+                        } else {
+                            newBeamItems[i]['Dose Rate (MU/min)'] = beamItems[i][attrName][0]
+                        }
+                    }
+
+                    // # M/U 처리
+                    if (attrName === 'BeamMeterset') {
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['M/U'] = ''
+                            continue
+                        } else {
+                            newBeamItems[i]['M/U'] = beamItems[i][attrName][0]
+                        }
+                    }
+
+                    // # SSD 처리
+                    if (attrName === 'SourceToSurfaceDistance') {
+                        newBeamItems[i]['SSD (cm)'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Gantry Rtn. (degree) 계산
+                    if (attrName === 'GantryAngle') {
+                        if (beamItems[i].GantryAngle.length >= 2) {
+                            gantryRtn = beamItems[i].GantryAngle[0] + '/' + beamItems[i].GantryAngle[beamItems[i].GantryAngle.length - 1]
+                            gantryRtn += ' (' + beamItems[i].GantryRotationDirection[0] + ')'
+                            newBeamItems[i]['Gantry Rtn. (degree)'] = gantryRtn
+                        } else {
+                            newBeamItems[i]['Gantry Rtn. (degree)'] = beamItems[i].GantryAngle[0]
+                        }
+                    }
+
+                    // # Colli Rtn. (degree) 처리
+                    if (attrName === 'BeamLimitingDeviceAngle') {
+                        newBeamItems[i]['Colli Rtn. (degree)'] = beamItems[i][attrName][0]
+                    }
+
+                    // # Field X, Field Y 계산
+                    if (attrName === 'LeafJawPositions') {
+                        beamItems[i].RTBeamLimitingDeviceType.forEach((type, index) => {
+                            if (type === 'MLCX' || type === 'MLCY')
+                                return false
+
+                            if (type === 'X' && !fieldX) {
+                                fieldX = beamItems[i].LeafJawPositions[index]
+                            } else if (type === 'ASYMX' && !fieldX) {
+                                fieldX = beamItems[i].LeafJawPositions[index]
+                            }
+
+                            if (type === 'Y' && !fieldY) {
+                                fieldY = beamItems[i].LeafJawPositions[index]
+
+                            } else if (type === 'ASYMY' && !fieldY) {
+                                fieldY = beamItems[i].LeafJawPositions[index]
+                            }
+
+                        })
+                        tmpX1 = (-Number(fieldX.split('\\')[0])) / 10
+                        tmpX2 = Number(fieldX.split('\\')[1]) / 10
+                        tmpY1 = (-Number(fieldY.split('\\')[0])) / 10
+                        tmpY2 = Number(fieldY.split('\\')[1]) / 10
+
+                        fieldX = tmpX1 + tmpX2
+                        fieldY = tmpY1 + tmpY2
+
+                        x1 = tmpX1.toFixed(1)
+                        x2 = tmpX2.toFixed(1)
+                        y1 = tmpY1.toFixed(1)
+                        y2 = tmpY2.toFixed(1)
+
+                        fieldX = fieldX.toFixed(1)
+                        fieldY = fieldY.toFixed(1)
+                        if (x1 !== x2) {
+                            fieldX += ' *'
+                        }
+                        if (y1 !== y2) {
+                            fieldY += ' *'
+                        }
+
+                        newBeamItems[i]['Field X (cm)'] = fieldX
+                        newBeamItems[i]['Field Y (cm)'] = fieldY
+                        newBeamItems[i]['X1 (cm)'] = x1
+                        newBeamItems[i]['X2 (cm)'] = x2
+                        newBeamItems[i]['Y1 (cm)'] = y1
+                        newBeamItems[i]['Y2 (cm)'] = y2
+
+                        // fieldX, fieldY 초기화
+                        fieldX = ''
+                        fieldY = ''
+
+                    }
+
+                    // # Nominal Beam Energy 단위 표시
+                    if (attrName === 'NominalBeamEnergy') {
+                        if ((beamItems[i].BeamDose).length === 0 || Number(beamItems[i].BeamDose[0]) === 0) {
+                            newBeamItems[i]['Energy'] = ''
+                            continue
+                        } else {
+                            if (beamItems[i].RadiationType[0] === 'PHOTON') {
+                                newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MV'
+                            }
+                            else if (beamItems[i].RadiationType[0] === 'NEUTRON' || beamItems[i].RadiationType[0] === 'ELECTRON'
+                                || beamItems[i].RadiationType[0] === 'PROTON') {
+                                newBeamItems[i]['Energy'] = beamItems[i].NominalBeamEnergy[0] + ' MeV'
+                            }
+                        }
+
+
+                    }
+
+                    // # Number of Boli, Compensators, Accessories,
+                    if (attrName === 'NumberOfBoli') {
+                        if (Number(beamItems[i][attrName]) === 0) {
+                            newBeamItems[i]['Bolus'] = 'N'
+                        } else if (Number(beamItems[i][attrName]) >= 1) {
+                            newBeamItems[i]['Bolus'] = 'Y'
+                        }
+                    }
+                    if (attrName === 'NumberOfCompensators') {
+                        if (Number(beamItems[i][attrName]) === 0) {
+                            newBeamItems[i]['Compensator (Y/N)'] = 'N'
+                        } else if (Number(beamItems[i][attrName]) >= 1) {
+                            newBeamItems[i]['Compensator (Y/N)'] = 'Y'
+                        }
+                    }
+                    // TODO: Accessories 작업
+
+
+                    // # MLC / Block 처리
+                    // Block인 경우
+                    if (beamItems[i].NumberOfBlocks[0] !== '0') {
+                        newBeamItems[i]['MLC / Block'] = 'Block'
+                    }
+                    // MLC인 경우
+                    else {
+                        if (beamItems[i].BeamType[0] === 'STATIC') {
+                            newBeamItems[i]['MLC / Block'] = 'MLC'
+                        }
+                        else if (beamItems[i].BeamType[0] === 'DYNAMIC') {
+                            newBeamItems[i]['MLC / Block'] = 'DMLC'
+                        }
+                    }
+
+                    // # Wedge Code 처리
+                    if (!beamItems[i].WedgeID[0]) {
+                        newBeamItems[i]['Wedge Angle'] = ''
+                        newBeamItems[i]['Wedge Code'] = 'NONE'
+                    } else {
+                        wedgeCode = beamItems[i].WedgeID[0]
+                        wedgeCode += '(' + beamItems[i].WedgePosition[0] + ')'
+                        newBeamItems[i]['Wedge Angle'] = beamItems[i].WedgeAngle[0]
+                        newBeamItems[i]['Wedge Code'] = wedgeCode // 수정 필요
+                    }
+
+                    // # Electron Applicator 처리
+                    if (!beamItems[i].ApplicatorID[0]) {
+                        newBeamItems[i]['Electron Applicator (cm)'] = ''
+                    } else {
+                        newBeamItems[i]['Electron Applicator (cm)'] = beamItems[i].ApplicatorID[0]
+                    }
+
+                    // # Compensator Thickness 처리
+                    if (!beamItems[i].CompensatorThicknessData[0]) {
+                        newBeamItems[i]['Thickness (cm)'] = ''
+                    } else {
+                        newBeamItems[i]['Thickness (cm)'] = beamItems[i].ApplicatorID[0]
+                    }
+
+                    // # Couch Rtn 처리
+
+
+                } catch (err) {
+                    console.log(err)
+                }
+            }
+
+        }
+
+        return newBeamItems
+    }
 
     // this function gets called once the user drops the file onto the div
     function handleFileSelect(evt) {
@@ -414,8 +617,7 @@
         var files = evt.dataTransfer.files;
 
         // this UI is only built for a single file so just dump the first one
-        file = files[0]
-        dumpFile();
+        dumpFile(files[0]);
     }
 
     function handleDragOver(evt) {
@@ -429,7 +631,6 @@
     dropZone.addEventListener('dragover', handleDragOver, false);
     dropZone.addEventListener('drop', handleFileSelect, false);
 
-    $('#version').text(dicomParser.version);
 
 </script>
 
