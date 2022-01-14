@@ -1,79 +1,78 @@
-
 <!DOCTYPE HTML>
 <html>
+
 <head>
     <!-- twitter bootstrap CSS stylesheet - included to make things pretty, not needed or used by cornerstone -->
     <link href="./node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- <link href="../cornerstone.min.css" rel="stylesheet"> -->
 </head>
+
 <body>
-<div class="container">
+    <div class="container">
 
-    <div class="page-header">
-        <h1>Example of displaying a DICOM P10 from the local file system</h1>
-        <p class="lead">
-            Click "Choose File" and select a DICOM P10 file on your local file system or drag and drop a DICOM P10
-            file.
-            <button id="toggleCollapseInfo" class="btn btn-primary" type="button">
-                Click for more info
-            </button>
-        </p>
-    </div>
-    <div id="collapseInfo" class="collapse" style="display:none;">
-        <p>
-            This example illustrates how to use the cornerstoneWADOImageLoader to read a DICOM P10
-            SOP instance from the local file system and display it in your web browser using cornerstone.
-            Not all transfer syntaxes are currently supported,
-            <a href="https://github.com/cornerstonejs/cornerstoneWADOImageLoader/blob/master/docs/TransferSyntaxes.md">
-                click here for the full list.
-            </a>
-        </p>
-        <P>
-            NOTE: If the DICOM P10 file is multiframe, only the first frame will be displayed.  Access to
-            other frames is possible by adding the query string parameter <i>frame</i> to specify which frame
-            to display from a multiframe object (defaults to the first frame if not specified). <code>?frame=2</code>
-        </P>
-        <P>
-            NOTE: Browser security prevents javascript from reading the file system directly - files must be
-            chosen manually by the user via the file input element as shown in this example or via drag and drop.
-        </P>
-        <br>
-        <br>
-        <strong>Use of this example requires IE10+ or any other modern browser.</strong>
-        <hr>
-    </div>
-    <div id="loadProgress">Image Load Progress:</div>
+        <div class="page-header">
+            <h1>Example of displaying a DICOM P10 from the local file system</h1>
+            <p class="lead">
+                Click "Choose File" and select a DICOM P10 file on your local file system or drag and drop a DICOM P10
+                file.
+                <button id="toggleCollapseInfo" class="btn btn-primary" type="button">
+                    Click for more info
+                </button>
+            </p>
+        </div>
+        <div id="collapseInfo" class="collapse" style="display:none;">
+            <p>
+                This example illustrates how to use the cornerstoneWADOImageLoader to read a DICOM P10
+                SOP instance from the local file system and display it in your web browser using cornerstone.
+                Not all transfer syntaxes are currently supported,
+                <a
+                    href="https://github.com/cornerstonejs/cornerstoneWADOImageLoader/blob/master/docs/TransferSyntaxes.md">
+                    click here for the full list.
+                </a>
+            </p>
+            <P>
+                NOTE: If the DICOM P10 file is multiframe, only the first frame will be displayed. Access to
+                other frames is possible by adding the query string parameter <i>frame</i> to specify which frame
+                to display from a multiframe object (defaults to the first frame if not specified).
+                <code>?frame=2</code>
+            </P>
+            <P>
+                NOTE: Browser security prevents javascript from reading the file system directly - files must be
+                chosen manually by the user via the file input element as shown in this example or via drag and drop.
+            </P>
+            <br>
+            <br>
+            <strong>Use of this example requires IE10+ or any other modern browser.</strong>
+            <hr>
+        </div>
+        <div id="loadProgress">Image Load Progress:</div>
 
-    <div class="row">
-        <form id="form" class="form-horizontal">
-            <div class="form-group">
-                <div class="col-sm-3">
-                    <input type="file" id="selectFile" >
+        <div class="row">
+            <form id="form" class="form-horizontal">
+                <div class="form-group">
+                    <div class="col-sm-3">
+                        <input type="file" id="selectFile">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <input type="checkbox" id="toggleModalityLUT">Apply Modality LUT</input>
+        <input type="checkbox" id="toggleVOILUT">Apply VOI LUT</input>
+        <br>
+        <div class="row">
+            <div class="col-md-6">
+                <div style="width:512px;height:512px;position:relative;color: white;display:inline-block;border-style:solid;border-color:black;"
+                    oncontextmenu="return false" class='disable-selection noIbar' unselectable='on'
+                    onselectstart='return false;' onmousedown='return false;'>
+                    <div id="dicomImage" style="width:512px;height:512px;top:0px;left:0px; position:absolute">
+                    </div>
                 </div>
             </div>
-        </form>
-    </div>
-    <input type="checkbox" id="toggleModalityLUT">Apply Modality LUT</input>
-    <input type="checkbox" id="toggleVOILUT">Apply VOI LUT</input>
-    <br>
-    <div class="row">
-        <div class="col-md-6">
-            <div style="width:512px;height:512px;position:relative;color: white;display:inline-block;border-style:solid;border-color:black;"
-                 oncontextmenu="return false"
-                 class='disable-selection noIbar'
-                 unselectable='on'
-                 onselectstart='return false;'
-                 onmousedown='return false;'>
-                <div id="dicomImage"
-                     style="width:512px;height:512px;top:0px;left:0px; position:absolute">
-                </div>
+            <div class="col-md-6">
+
             </div>
         </div>
-        <div class="col-md-6">
-
-        </div>
     </div>
-</div>
 </body>
 
 
@@ -98,6 +97,88 @@
 <script>
     cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
 
+    function isASCII(str) {
+        return /^[\x00-\x7F]*$/.test(str);
+    }
+
+    const usingTags = {
+        'x30020002': 'RT Image Label',
+        'x00080023': 'Content Date',
+        'x00080033': 'Content Time',
+        'x300c0006': 'Referenced Beam Number',
+        'x30020020': 'Radiation Machine Name',
+        'x30020022': 'Radiation Machine SAD',
+        //SSD
+        //Modality
+        //Energy
+        //M/U
+        'x300a011e': 'Gantry',
+        'x300a0120': 'Colimator',
+        'x300a00b8': 'RT Beam Limiting Device Type',
+        'x300a011c': 'Leaf/Jaw Positions',
+        'x00100020': 'Patient ID',
+        'x00101000': 'Other Patient IDs',
+        'x00100010': 'Patient\'s Name'
+        //Plan Label
+    }
+
+    let depth = 0
+    let beamObj = {}
+
+    function dumpDataSet(dataSet) {
+
+        try {
+
+            for (var propertyName in dataSet.elements) {
+
+                var element = dataSet.elements[propertyName];
+                let text = ''
+
+                if (element.items) {
+
+                    let itemNumber = 0;
+                    element.items.forEach(function (item) {
+                        depth++
+                        itemNumber++
+                        dumpDataSet(item.dataSet);
+                        depth--
+                    });
+
+                }
+                else {
+                    if (element.length < 128) {
+
+                        let str = dataSet.string(propertyName);
+
+                        let stringIsAscii = isASCII(str);
+
+                        if (stringIsAscii) {
+                            if (str !== undefined) {
+                                text = str
+                            }
+                        }
+
+                    }
+                    // 실제 beamItems에 추가하는 부분
+                    // if (element.tag)
+                    if (Object.keys(usingTags).includes(element.tag)) {
+
+                        let attrName = usingTags[element.tag]
+                        // console.log(depth, attrName, element.tag, text)
+                        beamObj[attrName].push(text)
+                    }
+                }
+
+            }
+        } catch (err) {
+            var ex = {
+                exception: err,
+                output: beamObj
+            }
+            console.log(err)
+            throw ex;
+        }
+    }
     // this function gets called once the user drops the file onto the div
     function handleFileSelect(evt) {
         evt.stopPropagation();
@@ -125,24 +206,178 @@
 
 
     cornerstoneWADOImageLoader.configure({
-        beforeSend: function(xhr) {
+        beforeSend: function (xhr) {
             // Add custom headers here (e.g. auth tokens)
             //xhr.setRequestHeader('x-auth-token', 'my auth token');
         },
     });
+
+    function showOverlay(newObj) {
+        // Text 순서, newObj의 key 값과 동일해야 함
+        const header = [
+            'Name',
+            'Date',
+            'Beam Number',
+            'Machine Name',
+            'SAD',
+            // 'SSD',
+            // 'Modality',
+            // 'Energy',
+            // 'M/U',
+            // 'Gantry',
+            'Collimator',
+            'Field X (cm)',
+            'X1 (cm)',
+            'X2 (cm)',
+            'Field Y (cm)',
+            'Y1 (cm)',
+            'Y2 (cm)',
+            // 'MLC / Block',
+        ]
+
+        let divTag = document.createElement('div');
+        divTag.setAttribute('style', 'top:0px;left:0px;position:absolute')
+        for (let i =0; i<header.length; i++) {
+            let thisHeader = header[i]
+
+            let liTag = document.createElement('li');
+            liTag.innerHTML = thisHeader + ': ' + newObj[thisHeader]
+            liTag.setAttribute("style", "color:white;font-size:0.85em;list-style:none;top:0px;left:0px;");
+            divTag.appendChild(liTag)
+        }
+        document.getElementById('dicomImage').appendChild(divTag)
+
+
+        // liTag.innerHTML='hello'
+        // liTag.setAttribute("style", "color:white;list-style:none;top:0px;left:0px;position:absolute");
+
+        // document.getElementById('dicomImage').appendChild(liTag)
+
+
+
+
+    }
+
+
+    function createDRRObj(beamObj) {
+        let newObj = {}
+
+        try {
+
+            // # Name (RT Image Label)
+            newObj['Name'] = beamObj['RT Image Label'][0]
+
+            // # Date (Date + Time)
+            if (beamObj['Content Date'] && beamObj['Content Time']) {
+                let time = ' ' + beamObj['Content Time'][0].split('.')[0]
+                newObj['Date'] = beamObj['Content Date'][0] + time
+            } else {
+                newObj['Date'] = ''
+            }
+
+
+            let fieldX = ''
+            let fieldY = ''
+            let x1 = ''
+            let x2 = ''
+            let y1 = ''
+            let y2 = ''
+
+            // # X,Y Leaf/Jaw Positions 계산
+            beamObj['RT Beam Limiting Device Type'].forEach((type, index) => {
+                if (type === 'MLCX' || type === 'MLCY')
+                    return false
+
+                if (type === 'X' && !fieldX) {
+                    fieldX = beamObj['Leaf/Jaw Positions'][index]
+                } else if (type === 'ASYMX' && !fieldX) {
+                    fieldX = beamObj['Leaf/Jaw Positions'][index]
+                }
+
+                if (type === 'Y' && !fieldY) {
+                    fieldY = beamObj['Leaf/Jaw Positions'][index]
+
+                } else if (type === 'ASYMY' && !fieldY) {
+                    fieldY = beamObj['Leaf/Jaw Positions'][index]
+                }
+            })
+            tmpX1 = (-Number(fieldX.split('\\')[0])) / 10
+            tmpX2 = Number(fieldX.split('\\')[1]) / 10
+            tmpY1 = (-Number(fieldY.split('\\')[0])) / 10
+            tmpY2 = Number(fieldY.split('\\')[1]) / 10
+
+            fieldX = tmpX1 + tmpX2
+            fieldY = tmpY1 + tmpY2
+
+            x1 = tmpX1.toFixed(1)
+            x2 = tmpX2.toFixed(1)
+            y1 = tmpY1.toFixed(1)
+            y2 = tmpY2.toFixed(1)
+
+            fieldX = fieldX.toFixed(1)
+            fieldY = fieldY.toFixed(1)
+            if (x1 !== x2) {
+                fieldX += ' *'
+            }
+            if (y1 !== y2) {
+                fieldY += ' *'
+            }
+
+            newObj['Field X (cm)'] = fieldX
+            newObj['Field Y (cm)'] = fieldY
+            newObj['X1 (cm)'] = x1
+            newObj['X2 (cm)'] = x2
+            newObj['Y1 (cm)'] = y1
+            newObj['Y2 (cm)'] = y2
+
+            // # SAD (mm->cm)
+            let sad = beamObj['Radiation Machine SAD'][0]
+            sad = (Number(sad) / 10).toFixed(1)
+            newObj['SAD'] = sad
+
+            // # Beam Number
+            newObj['Beam Number'] = beamObj['Referenced Beam Number'][0]
+
+            // # Machine Name
+            newObj['Machine Name'] = beamObj['Radiation Machine Name'][0]
+
+            // # Collimator
+            newObj['Collimator'] = beamObj['Colimator'][0]
+
+
+        } catch (err) {
+            console.log(err)
+        }
+
+        return newObj
+
+    }
 
     let loaded = false;
 
     function loadAndViewImage(imageId) {
         const element = document.getElementById('dicomImage');
         const start = new Date().getTime();
-        cornerstone.loadImage(imageId).then(function(image) {
-            console.log(image);
+        cornerstone.loadImage(imageId).then(function (image) {
+            console.log(image.data);
+            let dataSet = image.data
+
+            for (let key in usingTags) {
+                beamObj[usingTags[key]] = []
+            }
+
+            dumpDataSet(dataSet)
+            console.log(beamObj)
+
+            let newObj = createDRRObj(beamObj)
+            console.log(newObj)
+            showOverlay(newObj)
+
             const viewport = cornerstone.getDefaultViewportForImage(element, image);
             document.getElementById('toggleModalityLUT').checked = (viewport.modalityLUT !== undefined);
             document.getElementById('toggleVOILUT').checked = (viewport.voiLUT !== undefined);
             cornerstone.displayImage(element, image, viewport);
-            if(loaded === false) {
+            if (loaded === false) {
                 cornerstoneTools.mouseInput.enable(element);
                 cornerstoneTools.mouseWheelInput.enable(element);
                 cornerstoneTools.wwwc.activate(element, 1); // ww/wc is the default tool for left mouse button
@@ -150,43 +385,19 @@
                 cornerstoneTools.zoom.activate(element, 4); // zoom is the default tool for right mouse button
                 cornerstoneTools.zoomWheel.activate(element); // zoom is the default tool for middle mouse wheel
 
-                cornerstoneTools.imageStats.enable(element);
+                // cornerstoneTools.imageStats.enable(element);
                 loaded = true;
             }
 
-            function getTransferSyntax() {
-                const value = image.data.string('x00020010');
-                return value + ' [' + uids[value] + ']';
-            }
-
-            function getSopClass() {
-                const value = image.data.string('x00080016');
-                return value + ' [' + uids[value] + ']';
-            }
-
-            function getPixelRepresentation() {
-                const value = image.data.uint16('x00280103');
-                if(value === undefined) {
-                    return;
-                }
-                return value + (value === 0 ? ' (unsigned)' : ' (signed)');
-            }
-
-            function getPlanarConfiguration() {
-                const value = image.data.uint16('x00280006');
-                if(value === undefined) {
-                    return;
-                }
-                return value + (value === 0 ? ' (pixel)' : ' (plane)');
-            }
 
 
-        }, function(err) {
+
+        }, function (err) {
             alert(err);
         });
     }
 
-    cornerstone.events.addEventListener('cornerstoneimageloadprogress', function(event) {
+    cornerstone.events.addEventListener('cornerstoneimageloadprogress', function (event) {
         const eventData = event.detail;
         const loadProgress = document.getElementById('loadProgress');
         loadProgress.textContent = `Image Load Progress: ${eventData.percentComplete}%`;
@@ -195,7 +406,7 @@
     const element = document.getElementById('dicomImage');
     cornerstone.enable(element);
 
-    document.getElementById('selectFile').addEventListener('change', function(e) {
+    document.getElementById('selectFile').addEventListener('change', function (e) {
         // Add the file to the cornerstoneFileImageLoader and get unique
         // number for that file
         const file = e.target.files[0];
@@ -203,12 +414,12 @@
         loadAndViewImage(imageId);
     });
 
-    document.getElementById('toggleModalityLUT').addEventListener('click', function() {
+    document.getElementById('toggleModalityLUT').addEventListener('click', function () {
         const applyModalityLUT = document.getElementById('toggleModalityLUT').checked;
         console.log('applyModalityLUT=', applyModalityLUT);
         const image = cornerstone.getImage(element);
         const viewport = cornerstone.getViewport(element);
-        if(applyModalityLUT) {
+        if (applyModalityLUT) {
             viewport.modalityLUT = image.modalityLUT;
         } else {
             viewport.modalityLUT = undefined;
@@ -216,12 +427,12 @@
         cornerstone.setViewport(element, viewport);
     });
 
-    document.getElementById('toggleVOILUT').addEventListener('click', function() {
+    document.getElementById('toggleVOILUT').addEventListener('click', function () {
         const applyVOILUT = document.getElementById('toggleVOILUT').checked;
         console.log('applyVOILUT=', applyVOILUT);
         const image = cornerstone.getImage(element);
         const viewport = cornerstone.getViewport(element);
-        if(applyVOILUT) {
+        if (applyVOILUT) {
             viewport.voiLUT = image.voiLUT;
         } else {
             viewport.voiLUT = undefined;
@@ -229,7 +440,7 @@
         cornerstone.setViewport(element, viewport);
     });
 
-    document.getElementById('toggleCollapseInfo').addEventListener('click', function() {
+    document.getElementById('toggleCollapseInfo').addEventListener('click', function () {
         if (document.getElementById('collapseInfo').style.display === 'none') {
             document.getElementById('collapseInfo').style.display = 'block';
         } else {
@@ -237,4 +448,5 @@
         }
     });
 </script>
+
 </html>
