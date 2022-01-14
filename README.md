@@ -9,3 +9,9 @@
 ## 3. Setup
 - npm install
 
+---
+### 1. RT Plan Example
+![image](https://user-images.githubusercontent.com/68843443/149470773-237e0f77-26e8-45de-a9a2-e221db9a4e58.png)
+
+### 2. RT Image Example
+![image](https://user-images.githubusercontent.com/68843443/149470935-0a1c5133-4fbc-4c80-be63-5977ee887aa6.png)
