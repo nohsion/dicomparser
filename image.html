@@ -256,6 +256,13 @@
                 continue
             }
 
+            if (thisHeader === 'Machine Name') {
+                liTag.innerHTML = newObj[thisHeader]
+                liTag.setAttribute("style", "color:white;font-size:0.85em;list-style:none;top:0px;left:0px;");
+                divTag.appendChild(liTag)
+                continue
+            } 
+
             liTag.innerHTML = thisHeader + ': ' + newObj[thisHeader]
             liTag.setAttribute("style", "color:white;font-size:0.85em;list-style:none;top:0px;left:0px;");
             divTag.appendChild(liTag)
@@ -294,9 +301,10 @@
         let newObj = {}
 
         try {
-
             // # Name (RT Image Label)
-            newObj['Name'] = beamObj['RT Image Label'][0]
+            var name = beamObj['RT Image Label'][0]
+            var name = name.replace(/-DRR/gi, ' ');
+            newObj['Name'] = name;
 
             // # Date (Date + Time)
             if (beamObj['Content Date'] && beamObj['Content Time']) {
@@ -306,13 +314,30 @@
                 let D = time.slice(6, 8)
                 let h = time.slice(8, 10)
                 let m = time.slice(10, 12)
-                let s = time.slice(12, 14)
-                let date = new Date(Y, M, D, h, m, s)
-                newObj['Date'] = date.toLocaleString()
+                let date = new Date(Y, M, D, h, m)
+
+                if (M = date.getMonth() < 10 ? '0' + date.getMonth() : date.getMonth())
+                    if (D = date.getDate() < 10 ? '0' + date.getDate() : date.getDate())
+
+                        if (date.getHours() < 12) {
+                            h = ' 오전 ' + date.getHours()
+                        }
+                        else {
+                            if (date.getHours() === 12) {
+                                h = ' 오후 ' + date.getHours()
+                            }
+                            else {
+                                h = ' 오후 ' + (date.getHours() - 12)
+                            }
+                        }
+
+                if (m = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes())
+
+                    newObj['Date'] = date.getFullYear() + '-' + M + '-' + D + h + ':' + m;
+                //newObj['Date'] = date.toLocaleString();
             } else {
                 newObj['Date'] = ''
             }
-
 
             let fieldX = ''
             let fieldY = ''
@@ -371,7 +396,7 @@
             // # SAD (mm->cm)
             let sad = beamObj['Radiation Machine SAD'][0]
             sad = (Number(sad) / 10).toFixed(1)
-            newObj['SAD'] = sad
+            newObj['SAD'] = sad + ' cm'
 
             // # Beam Number
             newObj['Ref. Beam No'] = beamObj['Referenced Beam Number'][0]
@@ -379,16 +404,15 @@
             // # Machine Name
             newObj['Machine Name'] = beamObj['Radiation Machine Name'][0]
 
-            // # Collimator
-            newObj['Collimator'] = beamObj['Colimator'][0]
+            // # Colimator
+            let coli = Number(beamObj['Colimator'][0]).toFixed(1)
+            newObj['Colimator'] = coli
 
 
         } catch (err) {
             console.log(err)
         }
-
         return newObj
-
     }
 
     function createDRRObj2(beamObj) {
