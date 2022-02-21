@@ -5,6 +5,7 @@ let obj = {}
 for (let key in TAG_DICT) {
     obj[TAG_DICT[key].name] = []
 }
+
 for (let i = 0; i < 5; i++) {
     beamItems.push(JSON.parse(JSON.stringify(obj)))
 
@@ -37,3 +38,11 @@ for (let i = 0; i < 5; i++) {
     console.log(beamItems[i]['ApplicatorID']) // [1], [1]
 }
 
+/**
+ * 
+ * @param {string} name 
+ * @param {int} age 
+ */
+function isTrue(name, age) {
+    console.log(name, age)
+}

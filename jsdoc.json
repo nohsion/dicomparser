@@ -1,0 +1,21 @@
+{
+    "source": {
+        "include": ["src"],
+        "includePattern": ".js$",
+        "excludePattern": "(node_modules/|docs)"
+    },
+    "plugins": ["node_modules/jsdoc/plugins/markdown"],
+    "templates": {
+        "cleverLinks": true,
+        "monospaceLinks": true
+    },
+    "opts": {
+        "template": "node_modules/docdash",
+        "recurse": true,
+        "destination": "API_document"
+    },
+    "docdash": {
+        "static": false,
+        "sort": false
+    }
+}
